@@ -1,0 +1,20 @@
+[2026-04-06 16:15:33] [INFO] Sunucu dinlemede: port 9000
+[2026-04-06 16:15:39] [INFO] Bağlantı kabul edildi: /127.0.0.1:64906
+[2026-04-06 16:15:39] [INFO] Yeni istemci bağlandı: emir (/127.0.0.1:64906)
+[2026-04-06 16:15:52] [INFO] Genel mesaj: emir
+[2026-04-06 16:16:01] [INFO] LOGOUT: emir
+[2026-04-06 16:16:01] [INFO] İstemci ayrıldı: emir
+[2026-04-06 16:25:24] [INFO] Sunucu dinlemede: port 9000
+[2026-04-06 16:25:25] [INFO] Bağlantı kabul edildi: /127.0.0.1:55446
+[2026-04-06 16:25:25] [INFO] Yeni istemci bağlandı: emir (/127.0.0.1:55446)
+[2026-04-06 16:25:54] [INFO] Bağlantı kabul edildi: /127.0.0.1:55456
+[2026-04-06 16:25:54] [INFO] Yeni istemci bağlandı: can (/127.0.0.1:55456)
+[2026-04-06 16:26:00] [INFO] Genel mesaj: can
+[2026-04-06 16:26:05] [INFO] Genel mesaj: emir
+[2026-04-06 16:26:17] [INFO] Özel mesaj: emir -> can
+[2026-04-06 16:26:38] [INFO] Yönetici duyurusu: naber genclik
+[2026-04-06 16:27:06] [INFO] Bağlantı kabul edildi: /127.0.0.1:62853
+[2026-04-06 16:27:06] [INFO] Yeni istemci bağlandı: cetin (/127.0.0.1:62853)
+[2026-04-06 16:27:11] [INFO] Genel mesaj: cetin
+[2026-04-06 16:27:18] [INFO] Özel mesaj: cetin -> can
+[2026-04-06 16:27:38] [INFO] Sunucu durduruldu.
