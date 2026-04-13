@@ -351,25 +351,43 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
     outer.setBackground(MockupTheme.BG1);
     outer.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, MockupTheme.BD));
 
-    JPanel row1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 6));
+    JPanel fields = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 6));
+    fields.setOpaque(false);
+    fields.setBackground(MockupTheme.BG1);
+    addMuted(fields, "Sunucu");
+    fields.add(hostField);
+    addMuted(fields, "Port");
+    fields.add(portField);
+    addMuted(fields, "Kullanıcı");
+    fields.add(userField);
+    addMuted(fields, "Oda şifresi");
+    fields.add(roomPasswordField);
+    addMuted(fields, "Oda adı");
+    fields.add(roomNameField);
+    addMuted(fields, "Hesap şifresi");
+    fields.add(accountPasswordField);
+
+    JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 6));
+    actions.setOpaque(false);
+    actions.add(connectBtn);
+    actions.add(refreshBtn);
+
+    JScrollPane fieldScroll = new JScrollPane(fields);
+    fieldScroll.setBorder(null);
+    fieldScroll.getViewport().setBackground(MockupTheme.BG1);
+    fieldScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+    fieldScroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER);
+    fieldScroll.setWheelScrollingEnabled(true);
+
+    JPanel row1 = new JPanel(new BorderLayout(8, 0));
     row1.setOpaque(false);
-    addMuted(row1, "Sunucu");
-    row1.add(hostField);
-    addMuted(row1, "Port");
-    row1.add(portField);
-    addMuted(row1, "Kullanıcı");
-    row1.add(userField);
-    addMuted(row1, "Oda şifresi");
-    row1.add(roomPasswordField);
-    addMuted(row1, "Oda adı");
-    row1.add(roomNameField);
-    addMuted(row1, "Hesap şifresi");
-    row1.add(accountPasswordField);
-    row1.add(connectBtn);
-    row1.add(refreshBtn);
+    row1.setAlignmentX(Component.LEFT_ALIGNMENT);
+    row1.add(fieldScroll, BorderLayout.CENTER);
+    row1.add(actions, BorderLayout.EAST);
 
     JPanel row2 = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 6));
     row2.setOpaque(false);
+    row2.setAlignmentX(Component.LEFT_ALIGNMENT);
     row2.add(autoReconnectBox);
     addMuted(row2, "Yazı px");
     row2.add(fontSlider);
@@ -536,14 +554,15 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
     inputStack.add(inputRow);
     inputBar.add(inputStack, BorderLayout.CENTER);
 
-    logStripInner = new JPanel(new FlowLayout(FlowLayout.LEFT, 16, 0));
+    logStripInner = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 6));
     logStripInner.setBackground(MockupTheme.BG1);
+    logStripInner.setBorder(new EmptyBorder(4, 12, 4, 12));
     logStripScroll = new JScrollPane(logStripInner);
     logStripScroll.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, MockupTheme.BD));
     logStripScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
     logStripScroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER);
     logStripScroll.getViewport().setBackground(MockupTheme.BG1);
-    logStripScroll.setPreferredSize(new Dimension(10, 36));
+    logStripScroll.setPreferredSize(new Dimension(10, 52));
 
     JPanel southStack = new JPanel();
     southStack.setLayout(new BoxLayout(southStack, BoxLayout.Y_AXIS));
@@ -776,14 +795,16 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
     Runnable r =
         () -> {
           String ts = LOCAL_TIME.format(Instant.now());
-          JPanel chip = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+          JPanel chip = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
           chip.setOpaque(false);
+          Font monoBase = new Font(Font.MONOSPACED, Font.PLAIN, 12);
           JLabel t = new JLabel("[" + ts + "]");
-          t.setForeground(MockupTheme.T3);
-          t.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 10));
+          t.setForeground(MockupTheme.T1);
+          t.setFont(monoBase);
           JLabel m = new JLabel(line);
-          m.setForeground(MockupTheme.T2);
-          m.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 10));
+          boolean duyuru = line.contains("[DUYURU]");
+          m.setForeground(duyuru ? MockupTheme.AM : MockupTheme.T0);
+          m.setFont(monoBase.deriveFont(duyuru ? Font.BOLD : Font.PLAIN));
           chip.add(t);
           chip.add(m);
           logStripInner.add(chip);
