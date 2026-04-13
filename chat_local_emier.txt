@@ -1,9 +1,0 @@
-[2026-04-10 18:51:12] Bağlantı kabul edildi. Hoş geldiniz, emier (oda: genel).
-[2026-04-10 18:51:12] Sunucu: [emier] sohbete katıldı.
-[2026-04-10 18:51:16] emier: merhaba
-[2026-04-10 18:51:20] can: merhab
-[2026-04-10 18:51:44] Dosya sunucuya gönderildi: Algoritma-Bolum 1.pdf
-[2026-04-10 18:51:44] Yeni dosya: Algoritma-Bolum 1.pdf (emier)
-[2026-04-10 18:51:44] Sunucu: [emier] dosya paylaştı: Algoritma-Bolum 1.pdf (437403 bayt)
-[2026-04-10 18:52:18] Bildirim: USER_LEFT|can
-[2026-04-10 18:52:18] Sunucu: [can] sohbetten ayrıldı.
