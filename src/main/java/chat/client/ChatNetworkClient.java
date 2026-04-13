@@ -28,6 +28,8 @@ public final class ChatNetworkClient {
 
   private static final DateTimeFormatter TIME =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
+  private static final int CHUNK_THRESHOLD_BYTES = 1024 * 1024;
+  private static final int CHUNK_SIZE = 512 * 1024;
 
   private final ClientCallbacks ui;
   private final ExecutorService io = Executors.newSingleThreadExecutor();
@@ -48,7 +50,13 @@ public final class ChatNetworkClient {
     return socket != null && socket.isConnected() && !socket.isClosed();
   }
 
-  public void connect(String host, int port, String username, String roomPassword)
+  public void connect(
+      String host,
+      int port,
+      String username,
+      String roomPassword,
+      String roomName,
+      String accountPassword)
       throws IOException {
     disconnectQuietly();
     stopHeartbeat();
@@ -61,10 +69,14 @@ public final class ChatNetworkClient {
     lastPongMs.set(System.currentTimeMillis());
     io.submit(this::readLoop);
     String pw = roomPassword == null ? "" : roomPassword;
+    String rn = roomName == null ? "" : roomName;
+    String ap = accountPassword == null ? "" : accountPassword;
     synchronized (writeLock) {
       writer.writeOpcode(OpCode.C_LOGIN);
       writer.writeUtf8(username.trim());
       writer.writeUtf8(pw);
+      writer.writeUtf8(rn);
+      writer.writeUtf8(ap);
       writer.flush();
     }
   }
@@ -132,6 +144,34 @@ public final class ChatNetworkClient {
     }
   }
 
+  public void sendTyping(boolean started) throws IOException {
+    synchronized (writeLock) {
+      if (writer == null) {
+        return;
+      }
+      writer.writeOpcode(OpCode.C_TYPING);
+      writer.writeBoolean(started);
+      writer.flush();
+    }
+  }
+
+  public void sendEditMessage(long messageId, String newText) throws IOException {
+    synchronized (writeLock) {
+      writer.writeOpcode(OpCode.C_EDIT_MESSAGE);
+      writer.writeLong(messageId);
+      writer.writeUtf8(newText);
+      writer.flush();
+    }
+  }
+
+  public void sendDeleteMessage(long messageId) throws IOException {
+    synchronized (writeLock) {
+      writer.writeOpcode(OpCode.C_DELETE_MESSAGE);
+      writer.writeLong(messageId);
+      writer.flush();
+    }
+  }
+
   public void sendLogout() throws IOException {
     synchronized (writeLock) {
       writer.writeOpcode(OpCode.C_LOGOUT);
@@ -140,10 +180,39 @@ public final class ChatNetworkClient {
   }
 
   public void sendFileOffer(String filename, byte[] data) throws IOException {
+    if (data.length > CHUNK_THRESHOLD_BYTES) {
+      sendLargeFile(filename, data);
+      return;
+    }
     synchronized (writeLock) {
       writer.writeOpcode(OpCode.C_FILE_OFFER);
       writer.writeUtf8(filename);
       writer.writeFully(data, 0, data.length);
+      writer.flush();
+    }
+  }
+
+  private void sendLargeFile(String filename, byte[] data) throws IOException {
+    String mime = guessMime(filename);
+    synchronized (writeLock) {
+      writer.writeOpcode(OpCode.C_FILE_UPLOAD_BEGIN);
+      writer.writeUtf8(filename);
+      writer.writeLong(data.length);
+      writer.writeUtf8(mime);
+      for (int off = 0, seq = 0; off < data.length; off += CHUNK_SIZE, seq++) {
+        int n = Math.min(CHUNK_SIZE, data.length - off);
+        writer.writeOpcode(OpCode.C_FILE_UPLOAD_PART);
+        writer.writeInt(seq);
+        writer.writeFully(data, off, n);
+      }
+      writer.writeOpcode(OpCode.C_FILE_UPLOAD_COMMIT);
+      writer.flush();
+    }
+  }
+
+  public void sendFileUploadCancel() throws IOException {
+    synchronized (writeLock) {
+      writer.writeOpcode(OpCode.C_FILE_CANCEL);
       writer.flush();
     }
   }
@@ -205,14 +274,16 @@ public final class ChatNetworkClient {
           case OpCode.S_CHAT_BROADCAST -> {
             String from = reader.readUtf8();
             long t = reader.readLong();
+            long mid = reader.readLong();
             String body = reader.readUtf8();
-            SwingUtilities.invokeLater(() -> ui.onChatBroadcast(from, t, body));
+            SwingUtilities.invokeLater(() -> ui.onChatBroadcast(from, t, mid, body));
           }
           case OpCode.S_CHAT_PRIVATE -> {
             String from = reader.readUtf8();
             long t = reader.readLong();
+            long mid = reader.readLong();
             String body = reader.readUtf8();
-            SwingUtilities.invokeLater(() -> ui.onChatPrivate(from, t, body));
+            SwingUtilities.invokeLater(() -> ui.onChatPrivate(from, t, mid, body));
           }
           case OpCode.S_NOTIFY -> {
             String n = reader.readUtf8();
@@ -223,7 +294,8 @@ public final class ChatNetworkClient {
             String from = reader.readUtf8();
             String name = reader.readUtf8();
             long sz = reader.readLong();
-            SwingUtilities.invokeLater(() -> ui.onFileAvailable(id, from, name, sz));
+            String mime = reader.readUtf8();
+            SwingUtilities.invokeLater(() -> ui.onFileAvailable(id, from, name, sz, mime));
           }
           case OpCode.S_FILE_PAYLOAD -> {
             String name = reader.readUtf8();
@@ -247,22 +319,37 @@ public final class ChatNetworkClient {
             String log = reader.readUtf8();
             SwingUtilities.invokeLater(() -> ui.onServerLog(log));
           }
-          case OpCode.S_PONG -> {
-            notePong();
-          }
+          case OpCode.S_PONG -> notePong();
           case OpCode.S_CHAT_HISTORY -> {
             int n = reader.readInt();
             List<ClientCallbacks.HistoryEntry> list = new ArrayList<>(n);
             for (int i = 0; i < n; i++) {
               String from = reader.readUtf8();
               long t = reader.readLong();
+              long mid = reader.readLong();
               String body = reader.readUtf8();
-              list.add(new ClientCallbacks.HistoryEntry(from, t, body));
+              list.add(new ClientCallbacks.HistoryEntry(from, t, mid, body));
             }
             List<ClientCallbacks.HistoryEntry> copy = List.copyOf(list);
             SwingUtilities.invokeLater(() -> ui.onChatHistory(copy));
           }
-          default -> SwingUtilities.invokeLater(() -> ui.onError("Bilinmeyen sunucu kodu: " + op));
+          case OpCode.S_USER_TYPING -> {
+            String who = reader.readUtf8();
+            boolean st = reader.readBoolean();
+            SwingUtilities.invokeLater(() -> ui.onUserTyping(who, st));
+          }
+          case OpCode.S_MESSAGE_EDITED -> {
+            long mid = reader.readLong();
+            String nt = reader.readUtf8();
+            String by = reader.readUtf8();
+            SwingUtilities.invokeLater(() -> ui.onMessageEdited(mid, nt, by));
+          }
+          case OpCode.S_MESSAGE_DELETED -> {
+            long mid = reader.readLong();
+            SwingUtilities.invokeLater(() -> ui.onMessageDeleted(mid));
+          }
+          default ->
+              SwingUtilities.invokeLater(() -> ui.onError("Bilinmeyen sunucu kodu: " + op));
         }
       }
     } catch (EOFException e) {
@@ -274,5 +361,22 @@ public final class ChatNetworkClient {
 
   public static String formatTime(long epochMs) {
     return TIME.format(Instant.ofEpochMilli(epochMs));
+  }
+
+  private static String guessMime(String filename) {
+    if (filename == null) {
+      return "application/octet-stream";
+    }
+    String n = filename.toLowerCase();
+    if (n.endsWith(".pdf")) {
+      return "application/pdf";
+    }
+    if (n.endsWith(".png")) {
+      return "image/png";
+    }
+    if (n.endsWith(".jpg") || n.endsWith(".jpeg")) {
+      return "image/jpeg";
+    }
+    return "application/octet-stream";
   }
 }

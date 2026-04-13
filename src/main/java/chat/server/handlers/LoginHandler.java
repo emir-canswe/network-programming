@@ -7,7 +7,7 @@ import chat.server.session.ClientSession;
 import java.io.IOException;
 
 /**
- * Giriş komutu — kullanıcı adı + opsiyonel oda şifresi, geçmiş mesajlar.
+ * Giriş: kullanıcı adı, oda şifresi, oda adı, hesap şifresi (son ikisi boş olabilir).
  */
 public final class LoginHandler implements ClientRequestHandler {
 
@@ -30,6 +30,11 @@ public final class LoginHandler implements ClientRequestHandler {
     if (password == null) {
       password = "";
     }
+    String roomRaw = session.protocolReader().readUtf8();
+    String accountPw = session.protocolReader().readUtf8();
+    if (accountPw == null) {
+      accountPw = "";
+    }
 
     if (!name.matches("[a-zA-Z0-9_\\-ğüşıöçĞÜŞİÖÇ]{2,24}")) {
       session.send(
@@ -41,8 +46,18 @@ public final class LoginHandler implements ClientRequestHandler {
       return;
     }
 
-    String expected = services.roomPassword();
-    if (expected != null && !expected.equals(password)) {
+    if (services.isBanned(name)) {
+      session.send(
+          w -> {
+            w.writeOpcode(OpCode.S_ACK_LOGIN);
+            w.writeBoolean(false);
+            w.writeUtf8("Bu kullanıcı adı engellenmiş.");
+          });
+      return;
+    }
+
+    String expectedRoom = services.roomPassword();
+    if (expectedRoom != null && !expectedRoom.equals(password)) {
       session.send(
           w -> {
             w.writeOpcode(OpCode.S_ACK_LOGIN);
@@ -53,9 +68,24 @@ public final class LoginHandler implements ClientRequestHandler {
       return;
     }
 
+    String expectedAccount = services.accountPassword();
+    if (expectedAccount != null && !expectedAccount.equals(accountPw)) {
+      session.send(
+          w -> {
+            w.writeOpcode(OpCode.S_ACK_LOGIN);
+            w.writeBoolean(false);
+            w.writeUtf8("Hesap şifresi hatalı veya eksik.");
+          });
+      services.logger().warn("Hatalı hesap şifresi: " + name);
+      return;
+    }
+
+    String room = ChatServerServices.sanitizeRoomName(roomRaw);
+    session.setRoom(room);
     session.setUsername(name);
     if (!services.registry().register(name, session)) {
       session.setUsername("");
+      session.setRoom("genel");
       session.send(
           w -> {
             w.writeOpcode(OpCode.S_ACK_LOGIN);
@@ -65,22 +95,24 @@ public final class LoginHandler implements ClientRequestHandler {
       return;
     }
     session.setAuthenticated(true);
+    services.registerActiveSession(name, session);
     session.send(
         w -> {
           w.writeOpcode(OpCode.S_ACK_LOGIN);
           w.writeBoolean(true);
-          w.writeUtf8("Bağlantı kabul edildi. Hoş geldiniz, " + name + ".");
+          w.writeUtf8("Bağlantı kabul edildi. Hoş geldiniz, " + name + " (oda: " + room + ").");
         });
 
     try {
-      broadcaster.sendChatHistoryTo(session, services.chatHistory().snapshot());
+      broadcaster.sendChatHistoryTo(
+          session, services.chatHistory().snapshotForRoom(room));
     } catch (IOException e) {
       services.logger().warn("Geçmiş mesajlar gönderilemedi: " + e.getMessage());
     }
 
-    services.logger().info("Yeni istemci bağlandı: " + name + " (" + session.remoteAddress() + ")");
-    broadcaster.notifyOthers(name, "USER_JOINED|" + name);
-    broadcaster.sendLogToAll("[" + name + "] sohbete katıldı.");
+    services.logger().info("Yeni istemci bağlandı: " + name + " oda=" + room + " " + session.remoteAddress());
+    broadcaster.notifyOthersInRoom(name, room, "USER_JOINED|" + name);
+    broadcaster.sendLogToRoom(room, "[" + name + "] sohbete katıldı.");
     broadcaster.broadcastUserList();
   }
 }

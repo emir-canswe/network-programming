@@ -3,6 +3,7 @@ package chat.client.ui;
 import chat.ui.MockupTheme;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -14,12 +15,21 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextArea;
 import javax.swing.SwingConstants;
+import javax.swing.JMenuItem;
+import javax.swing.JPopupMenu;
 import javax.swing.border.EmptyBorder;
 
 /** dark_chat_ui_mockup.html yapısına uygun satırlar. */
 public final class ChatRowFactory {
 
+  /** Yazı boyutu ölçeği (istemci ayarı). */
+  public static volatile float UI_SCALE = 1f;
+
   private ChatRowFactory() {}
+
+  private static float scaled(float pt) {
+    return pt * UI_SCALE;
+  }
 
   public static JLabel avatarSidebar(String name) {
     return avatar(name, 28, 11);
@@ -123,12 +133,23 @@ public final class ChatRowFactory {
   }
 
   public static JPanel fileSidebarRow(
-      String filename, String from, long sizeBytes, Runnable onDownload) {
-    JPanel row = new JPanel(new BorderLayout(8, 0));
+      String filename,
+      String from,
+      long sizeBytes,
+      String mime,
+      Runnable onDownload) {
+    JPanel row = new JPanel();
+    row.setLayout(new BoxLayout(row, BoxLayout.Y_AXIS));
     row.setOpaque(true);
     row.setBackground(MockupTheme.BG1);
-    row.setBorder(new EmptyBorder(5, 14, 5, 10));
-    row.setMaximumSize(new Dimension(Short.MAX_VALUE, 56));
+    row.setBorder(new EmptyBorder(6, 10, 6, 10));
+    row.setMaximumSize(new Dimension(Short.MAX_VALUE, 120));
+    row.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+    JPanel top = new JPanel(new BorderLayout(6, 0));
+    top.setOpaque(false);
+    top.setAlignmentX(Component.LEFT_ALIGNMENT);
+    top.setMaximumSize(new Dimension(Short.MAX_VALUE, 48));
 
     JPanel iconWrap = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
     iconWrap.setOpaque(false);
@@ -143,54 +164,61 @@ public final class ChatRowFactory {
     JPanel mid = new JPanel();
     mid.setLayout(new BoxLayout(mid, BoxLayout.Y_AXIS));
     mid.setOpaque(false);
-    JLabel fn = new JLabel(filename);
+    JLabel fn = new JLabel("<html><div style='width:140px'>" + escapeHtml(filename) + "</div></html>");
     fn.setForeground(MockupTheme.T0);
     fn.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
-    JLabel meta = new JLabel(from + " · " + formatSize(sizeBytes));
+    String mimeBit =
+        mime != null
+                && !mime.isBlank()
+                && !mime.equals("application/octet-stream")
+            ? " · " + mime
+            : "";
+    JLabel meta = new JLabel("<html><div style='width:140px'>" + escapeHtml(from + " · " + formatSize(sizeBytes) + mimeBit) + "</div></html>");
     meta.setForeground(MockupTheme.T2);
     meta.setFont(MockupTheme.FONT_XS);
     mid.add(fn);
     mid.add(meta);
 
-    JButton dl = new JButton("⬇");
+    top.add(iconWrap, BorderLayout.WEST);
+    top.add(mid, BorderLayout.CENTER);
+
+    JButton dl = new JButton("⬇ İndir");
+    dl.setAlignmentX(Component.LEFT_ALIGNMENT);
+    dl.setMaximumSize(new Dimension(Short.MAX_VALUE, 30));
     dl.setFocusPainted(false);
-    dl.setOpaque(false);
-    dl.setContentAreaFilled(false);
-    dl.setForeground(MockupTheme.T1);
-    dl.setBorder(BorderFactory.createCompoundBorder(
-        new javax.swing.border.LineBorder(MockupTheme.BD2, 1, true),
-        new EmptyBorder(2, 6, 2, 6)));
-    dl.setFont(MockupTheme.FONT_XS);
+    dl.setBackground(MockupTheme.AC);
+    dl.setForeground(Color.WHITE);
+    dl.setBorderPainted(false);
+    dl.setFont(dl.getFont().deriveFont(Font.BOLD, 10f));
+    dl.setBorder(new EmptyBorder(6, 8, 6, 8));
     dl.addActionListener(e -> onDownload.run());
     dl.addMouseListener(
         new java.awt.event.MouseAdapter() {
           @Override
           public void mouseEntered(java.awt.event.MouseEvent e) {
-            dl.setOpaque(true);
-            dl.setContentAreaFilled(true);
-            dl.setBackground(MockupTheme.AC);
-            dl.setForeground(Color.WHITE);
-            dl.setBorder(BorderFactory.createCompoundBorder(
-                new javax.swing.border.LineBorder(MockupTheme.AC, 1, true),
-                new EmptyBorder(2, 6, 2, 6)));
+            dl.setBackground(MockupTheme.AC2);
           }
 
           @Override
           public void mouseExited(java.awt.event.MouseEvent e) {
-            dl.setOpaque(false);
-            dl.setContentAreaFilled(false);
-            dl.setBackground(new Color(0, 0, 0, 0));
-            dl.setForeground(MockupTheme.T1);
-            dl.setBorder(BorderFactory.createCompoundBorder(
-                new javax.swing.border.LineBorder(MockupTheme.BD2, 1, true),
-                new EmptyBorder(2, 6, 2, 6)));
+            dl.setBackground(MockupTheme.AC);
           }
         });
 
-    row.add(iconWrap, BorderLayout.WEST);
-    row.add(mid, BorderLayout.CENTER);
-    row.add(dl, BorderLayout.EAST);
+    row.add(top);
+    row.add(Box.createVerticalStrut(6));
+    row.add(dl);
     return row;
+  }
+
+  private static String escapeHtml(String s) {
+    if (s == null) {
+      return "";
+    }
+    return s.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace("\"", "&quot;");
   }
 
   private static String formatSize(long b) {
@@ -230,7 +258,7 @@ public final class ChatRowFactory {
     ta.setEditable(false);
     ta.setOpaque(false);
     ta.setForeground(MockupTheme.T0);
-    ta.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+    ta.setFont(ta.getFont().deriveFont(scaled(12)));
     ta.setLineWrap(true);
     ta.setWrapStyleWord(true);
     ta.setBorder(null);
@@ -251,6 +279,53 @@ public final class ChatRowFactory {
     left.add(bubble);
     row.add(left, BorderLayout.WEST);
     return row;
+  }
+
+  /**
+   * Genel sohbette kendi mesajınız için sağ tık: düzenle / sil (sunucu 2 dk penceresi).
+   */
+  public static JPanel outgoingBubbleRow(
+      String time,
+      String body,
+      boolean isPrivate,
+      String privateCaption,
+      long broadcastMessageId,
+      Runnable onEdit,
+      Runnable onDelete) {
+    JPanel row = outgoingBubbleRow(time, body, isPrivate, privateCaption);
+    if (!isPrivate && broadcastMessageId >= 0 && onEdit != null && onDelete != null) {
+      attachBroadcastPopup(row, onEdit, onDelete);
+    }
+    return row;
+  }
+
+  private static void attachBroadcastPopup(JPanel row, Runnable onEdit, Runnable onDelete) {
+    row.addMouseListener(
+        new java.awt.event.MouseAdapter() {
+          private void maybe(java.awt.event.MouseEvent e) {
+            if (!e.isPopupTrigger()) {
+              return;
+            }
+            JPopupMenu m = new JPopupMenu();
+            JMenuItem ed = new JMenuItem("Düzenle (2 dk)");
+            ed.addActionListener(a -> onEdit.run());
+            JMenuItem del = new JMenuItem("Sil (2 dk)");
+            del.addActionListener(a -> onDelete.run());
+            m.add(ed);
+            m.add(del);
+            m.show(e.getComponent(), e.getX(), e.getY());
+          }
+
+          @Override
+          public void mousePressed(java.awt.event.MouseEvent e) {
+            maybe(e);
+          }
+
+          @Override
+          public void mouseReleased(java.awt.event.MouseEvent e) {
+            maybe(e);
+          }
+        });
   }
 
   public static JPanel outgoingBubbleRow(String time, String body, boolean isPrivate, String privateCaption) {
@@ -277,7 +352,7 @@ public final class ChatRowFactory {
     ta.setEditable(false);
     ta.setOpaque(false);
     ta.setForeground(Color.WHITE);
-    ta.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+    ta.setFont(ta.getFont().deriveFont(scaled(12)));
     ta.setLineWrap(true);
     ta.setWrapStyleWord(true);
     ta.setBorder(null);

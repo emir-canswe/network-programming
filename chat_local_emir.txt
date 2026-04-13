@@ -1,0 +1,21 @@
+[2026-04-10 18:43:48] Bağlantı kabul edildi. Hoş geldiniz, emir (oda: genel).
+[2026-04-10 18:43:48] Sunucu: [emir] sohbete katıldı.
+[2026-04-10 18:44:05] Sunucu: [DUYURU] merhaba
+[2026-04-10 18:44:12] emir: naber
+[2026-04-10 18:45:22] Bildirim: USER_JOINED|emircan
+[2026-04-10 18:45:22] Sunucu: [emircan] sohbete katıldı.
+[2026-04-10 18:45:49] emir: emir 
+[2026-04-10 18:45:51] emircan: iyidir sen
+[2026-04-10 18:46:29] Dosya sunucuya gönderildi: WIN_20251030_18_56_13_Pro.mp4
+[2026-04-10 18:46:29] Sunucu: [emir] parçalı dosya paylaştı: WIN_20251030_18_56_13_Pro.mp4 (7842565 bayt)
+[2026-04-10 18:46:29] Yeni dosya: WIN_20251030_18_56_13_Pro.mp4 (emir)
+[2026-04-10 18:46:43] emir: jlljl
+[2026-04-10 18:46:45] emir: fk
+[2026-04-10 18:47:45] Dosya sunucuya gönderildi: WhatsApp Image 2026-03-02 at 12.08.48 (1).jpeg
+[2026-04-10 18:47:45] Sunucu: [emir] dosya paylaştı: WhatsApp Image 2026-03-02 at 12.08.48 (1).jpeg (53794 bayt)
+[2026-04-10 18:47:45] Yeni dosya: WhatsApp Image 2026-03-02 at 12.08.48 (1).jpeg (emir)
+[2026-04-10 18:49:33] (özel) emircan: naber moruk
+[2026-04-10 18:50:14] Bildirim: USER_LEFT|emircan
+[2026-04-10 18:50:14] Sunucu: [emircan] sohbetten ayrıldı.
+[2026-04-10 18:50:17] Bağlantı hatası: Connection reset
+[2026-04-10 18:50:17] Bağlantı kapandı.

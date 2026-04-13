@@ -8,6 +8,7 @@ import chat.server.ChatServerServices;
 import chat.server.RateLimiter;
 import chat.server.UserListBroadcaster;
 import chat.server.handlers.ClientRequestDispatcher;
+import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.net.Socket;
@@ -27,12 +28,34 @@ public final class ClientSession implements ClientConnection, Runnable {
   private final Runnable onTerminated;
 
   private volatile String username = "";
+  private volatile String room = "genel";
   private volatile boolean authenticated;
   private volatile boolean running = true;
   private final RateLimiter chatRateLimiter = new RateLimiter(15, 10_000);
+  private volatile PendingFileUpload pendingUpload;
 
   public RateLimiter chatRateLimiter() {
     return chatRateLimiter;
+  }
+
+  /** Parçalı dosya yükleme tamponu (oturum başına en fazla bir aktif yükleme). */
+  public static final class PendingFileUpload {
+    public String filename;
+    public String mime = "application/octet-stream";
+    public long totalBytes;
+    public final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+  }
+
+  public PendingFileUpload pendingUpload() {
+    return pendingUpload;
+  }
+
+  public void setPendingUpload(PendingFileUpload pendingUpload) {
+    this.pendingUpload = pendingUpload;
+  }
+
+  public void clearPendingUpload() {
+    this.pendingUpload = null;
   }
 
   public ClientSession(
@@ -43,7 +66,6 @@ public final class ClientSession implements ClientConnection, Runnable {
       Runnable onTerminated)
       throws IOException {
     this.socket = socket;
-    /* 0 = sınırsız bekleme; büyük dosya indirilirken istemci ping gönderemeyebilir. */
     socket.setSoTimeout(0);
     this.reader = new ProtocolReader(socket.getInputStream());
     this.writer = new ProtocolWriter(socket.getOutputStream());
@@ -60,6 +82,16 @@ public final class ClientSession implements ClientConnection, Runnable {
 
   public void setUsername(String username) {
     this.username = username != null ? username : "";
+  }
+
+  @Override
+  public String getRoom() {
+    return room;
+  }
+
+  @Override
+  public void setRoom(String room) {
+    this.room = room != null && !room.isBlank() ? room : "genel";
   }
 
   @Override
@@ -125,11 +157,14 @@ public final class ClientSession implements ClientConnection, Runnable {
   }
 
   private void cleanup() {
+    clearPendingUpload();
     if (authenticated && username != null && !username.isEmpty()) {
+      String r = getRoom();
+      services.unregisterActiveSession(username);
       services.registry().unregister(username);
       services.logger().info("İstemci ayrıldı: " + username);
-      broadcaster.notifyAll("USER_LEFT|" + username);
-      broadcaster.sendLogToAll("[" + username + "] sohbetten ayrıldı.");
+      broadcaster.notifyOthersInRoom(username, r, "USER_LEFT|" + username);
+      broadcaster.sendLogToRoom(r, "[" + username + "] sohbetten ayrıldı.");
       broadcaster.broadcastUserList();
     }
     close();

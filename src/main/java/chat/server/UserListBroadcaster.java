@@ -3,11 +3,13 @@ package chat.server;
 import chat.protocol.OpCode;
 import chat.server.session.ClientConnection;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Kullanıcı listesi güncellemelerini tüm bağlantılara iletir (SRP).
+ * Kullanıcı listesi ve yayınlar — oda (room) bazlı.
  */
 public final class UserListBroadcaster {
 
@@ -17,13 +19,34 @@ public final class UserListBroadcaster {
     this.services = services;
   }
 
-  public void broadcastUserList() {
-    String list =
-        services.registry().usernames().stream().sorted().collect(Collectors.joining(","));
+  private static boolean sameRoom(ClientConnection c, String room) {
+    return c.isAuthenticated() && room != null && room.equals(c.getRoom());
+  }
+
+  private String csvUsernamesInRoom(String room) {
+    List<String> names = new ArrayList<>();
     services
         .registry()
         .forEachConnection(
             c -> {
+              if (sameRoom(c, room)) {
+                names.add(c.getUsername());
+              }
+            });
+    Collections.sort(names);
+    return names.stream().collect(Collectors.joining(","));
+  }
+
+  public void broadcastUserList() {
+    services
+        .registry()
+        .forEachConnection(
+            c -> {
+              if (!c.isAuthenticated()) {
+                return;
+              }
+              String room = c.getRoom();
+              String list = csvUsernamesInRoom(room);
               try {
                 c.send(
                     w -> {
@@ -37,8 +60,7 @@ public final class UserListBroadcaster {
   }
 
   public void sendUserListTo(ClientConnection c) throws IOException {
-    String list =
-        services.registry().usernames().stream().sorted().collect(Collectors.joining(","));
+    String list = csvUsernamesInRoom(c.getRoom());
     c.send(
         w -> {
           w.writeOpcode(OpCode.S_USER_LIST);
@@ -55,17 +77,18 @@ public final class UserListBroadcaster {
           for (ChatHistoryBuffer.Entry e : entries) {
             w.writeUtf8(e.fromUser());
             w.writeLong(e.epochMs());
+            w.writeLong(e.messageId());
             w.writeUtf8(e.text());
           }
         });
   }
 
-  public void notifyOthers(String exceptUser, String eventLine) {
+  public void notifyOthersInRoom(String exceptUser, String room, String eventLine) {
     services
         .registry()
         .forEachConnection(
             c -> {
-              if (!c.isAuthenticated() || c.getUsername().equals(exceptUser)) {
+              if (!sameRoom(c, room) || c.getUsername().equals(exceptUser)) {
                 return;
               }
               try {
@@ -79,7 +102,8 @@ public final class UserListBroadcaster {
             });
   }
 
-  public void notifyAll(String eventLine) {
+  /** Tüm odalara (sunucu içi uyumluluk için nadir). */
+  public void notifyAllAuthenticated(String eventLine) {
     services
         .registry()
         .forEachConnection(
@@ -92,6 +116,28 @@ public final class UserListBroadcaster {
                     w -> {
                       w.writeOpcode(OpCode.S_NOTIFY);
                       w.writeUtf8(eventLine);
+                    });
+              } catch (IOException ignored) {
+              }
+            });
+  }
+
+  public void sendLogToRoom(String room, String line) {
+    if (room == null) {
+      return;
+    }
+    services
+        .registry()
+        .forEachConnection(
+            c -> {
+              if (!sameRoom(c, room)) {
+                return;
+              }
+              try {
+                c.send(
+                    w -> {
+                      w.writeOpcode(OpCode.S_SERVER_LOG);
+                      w.writeUtf8(line);
                     });
               } catch (IOException ignored) {
               }
@@ -117,12 +163,12 @@ public final class UserListBroadcaster {
             });
   }
 
-  public void broadcastChat(String fromUser, long epochMs, String text) {
+  public void broadcastChat(String fromUser, long epochMs, long messageId, String text, String room) {
     services
         .registry()
         .forEachConnection(
             c -> {
-              if (!c.isAuthenticated()) {
+              if (!sameRoom(c, room)) {
                 return;
               }
               try {
@@ -131,6 +177,7 @@ public final class UserListBroadcaster {
                       w.writeOpcode(OpCode.S_CHAT_BROADCAST);
                       w.writeUtf8(fromUser);
                       w.writeLong(epochMs);
+                      w.writeLong(messageId);
                       w.writeUtf8(text);
                     });
               } catch (IOException ignored) {
@@ -138,23 +185,92 @@ public final class UserListBroadcaster {
             });
   }
 
-  public void sendPrivate(ClientConnection target, String fromUser, long epochMs, String text)
+  public void sendTypingToRoom(String exceptUser, String room, String who, boolean started) {
+    services
+        .registry()
+        .forEachConnection(
+            c -> {
+              if (!sameRoom(c, room) || c.getUsername().equals(exceptUser)) {
+                return;
+              }
+              try {
+                c.send(
+                    w -> {
+                      w.writeOpcode(OpCode.S_USER_TYPING);
+                      w.writeUtf8(who);
+                      w.writeBoolean(started);
+                    });
+              } catch (IOException ignored) {
+              }
+            });
+  }
+
+  public void broadcastMessageEdited(String room, long messageId, String newText, String editedBy) {
+    services
+        .registry()
+        .forEachConnection(
+            c -> {
+              if (!sameRoom(c, room)) {
+                return;
+              }
+              try {
+                c.send(
+                    w -> {
+                      w.writeOpcode(OpCode.S_MESSAGE_EDITED);
+                      w.writeLong(messageId);
+                      w.writeUtf8(newText);
+                      w.writeUtf8(editedBy);
+                    });
+              } catch (IOException ignored) {
+              }
+            });
+  }
+
+  public void broadcastMessageDeleted(String room, long messageId) {
+    services
+        .registry()
+        .forEachConnection(
+            c -> {
+              if (!sameRoom(c, room)) {
+                return;
+              }
+              try {
+                c.send(
+                    w -> {
+                      w.writeOpcode(OpCode.S_MESSAGE_DELETED);
+                      w.writeLong(messageId);
+                    });
+              } catch (IOException ignored) {
+              }
+            });
+  }
+
+  public void sendPrivate(
+      ClientConnection target, String fromUser, long epochMs, long messageId, String text)
       throws IOException {
     target.send(
         w -> {
           w.writeOpcode(OpCode.S_CHAT_PRIVATE);
           w.writeUtf8(fromUser);
           w.writeLong(epochMs);
+          w.writeLong(messageId);
           w.writeUtf8(text);
         });
   }
 
-  public void announceFile(ClientConnection exclude, String from, String id, String name, long size) {
+  public void announceFile(
+      ClientConnection exclude,
+      String from,
+      String id,
+      String name,
+      long size,
+      String mime,
+      String room) {
     services
         .registry()
         .forEachConnection(
             c -> {
-              if (!c.isAuthenticated() || c == exclude) {
+              if (!sameRoom(c, room) || c == exclude) {
                 return;
               }
               try {
@@ -165,14 +281,15 @@ public final class UserListBroadcaster {
                       w.writeUtf8(from);
                       w.writeUtf8(name);
                       w.writeLong(size);
+                      w.writeUtf8(mime != null ? mime : "application/octet-stream");
                     });
               } catch (IOException ignored) {
               }
             });
   }
 
-  /** Gönderene onay için aynı duyuru. */
-  public void announceFileToSelf(ClientConnection self, String from, String id, String name, long size)
+  public void announceFileToSelf(
+      ClientConnection self, String from, String id, String name, long size, String mime)
       throws IOException {
     self.send(
         w -> {
@@ -181,6 +298,7 @@ public final class UserListBroadcaster {
           w.writeUtf8(from);
           w.writeUtf8(name);
           w.writeLong(size);
+          w.writeUtf8(mime != null ? mime : "application/octet-stream");
         });
   }
 }

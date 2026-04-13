@@ -11,6 +11,11 @@ public interface ClientConnection {
 
   boolean isAuthenticated();
 
+  /** Sohbet odası / kanal (varsayılan: genel). */
+  String getRoom();
+
+  void setRoom(String room);
+
   void send(ProtocolPayload payload) throws IOException;
 
   void close();

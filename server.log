@@ -18,3 +18,93 @@
 [2026-04-06 16:27:11] [INFO] Genel mesaj: cetin
 [2026-04-06 16:27:18] [INFO] Özel mesaj: cetin -> can
 [2026-04-06 16:27:38] [INFO] Sunucu durduruldu.
+[2026-04-10 18:43:21] [INFO] Sunucu dinlemede: port 9000
+[2026-04-10 18:43:48] [INFO] Bağlantı kabul edildi: /127.0.0.1:56763
+[2026-04-10 18:43:48] [INFO] Yeni istemci bağlandı: emir oda=genel /127.0.0.1:56763
+[2026-04-10 18:44:05] [INFO] Yönetici duyurusu: merhaba
+[2026-04-10 18:44:12] [INFO] Genel mesaj: emir oda=genel
+[2026-04-10 18:44:47] [INFO] Bağlantı kabul edildi: /127.0.0.1:52061
+[2026-04-10 18:44:47] [WARN] Hatalı hesap şifresi: emircan
+[2026-04-10 18:44:47] [INFO] Bağlantı sonlandı (EOF): 
+[2026-04-10 18:44:50] [INFO] Bağlantı kabul edildi: /127.0.0.1:52062
+[2026-04-10 18:44:50] [WARN] Hatalı hesap şifresi: emircan
+[2026-04-10 18:44:50] [INFO] Bağlantı sonlandı (EOF): 
+[2026-04-10 18:44:51] [INFO] Bağlantı kabul edildi: /127.0.0.1:52063
+[2026-04-10 18:44:51] [WARN] Hatalı hesap şifresi: emircan
+[2026-04-10 18:44:51] [INFO] Bağlantı sonlandı (EOF): 
+[2026-04-10 18:44:52] [INFO] Bağlantı kabul edildi: /127.0.0.1:52064
+[2026-04-10 18:44:52] [WARN] Hatalı hesap şifresi: emircan
+[2026-04-10 18:44:52] [INFO] Bağlantı sonlandı (EOF): 
+[2026-04-10 18:44:52] [INFO] Bağlantı kabul edildi: /127.0.0.1:52065
+[2026-04-10 18:44:52] [WARN] Hatalı hesap şifresi: emircan
+[2026-04-10 18:44:52] [INFO] Bağlantı sonlandı (EOF): 
+[2026-04-10 18:45:09] [INFO] Bağlantı kabul edildi: /127.0.0.1:53411
+[2026-04-10 18:45:09] [WARN] Hatalı hesap şifresi: emircan
+[2026-04-10 18:45:09] [INFO] Bağlantı sonlandı (EOF): 
+[2026-04-10 18:45:10] [INFO] Bağlantı kabul edildi: /127.0.0.1:53412
+[2026-04-10 18:45:10] [WARN] Hatalı hesap şifresi: emircan
+[2026-04-10 18:45:10] [INFO] Bağlantı sonlandı (EOF): 
+[2026-04-10 18:45:10] [INFO] Bağlantı kabul edildi: /127.0.0.1:53414
+[2026-04-10 18:45:10] [WARN] Hatalı hesap şifresi: emircan
+[2026-04-10 18:45:10] [INFO] Bağlantı sonlandı (EOF): 
+[2026-04-10 18:45:11] [INFO] Bağlantı kabul edildi: /127.0.0.1:53415
+[2026-04-10 18:45:11] [WARN] Hatalı hesap şifresi: emircan
+[2026-04-10 18:45:11] [INFO] Bağlantı sonlandı (EOF): 
+[2026-04-10 18:45:11] [INFO] Bağlantı kabul edildi: /127.0.0.1:53416
+[2026-04-10 18:45:11] [WARN] Hatalı hesap şifresi: emircan
+[2026-04-10 18:45:11] [INFO] Bağlantı sonlandı (EOF): 
+[2026-04-10 18:45:11] [INFO] Bağlantı kabul edildi: /127.0.0.1:53417
+[2026-04-10 18:45:11] [WARN] Hatalı hesap şifresi: emircan
+[2026-04-10 18:45:11] [INFO] Bağlantı sonlandı (EOF): 
+[2026-04-10 18:45:11] [INFO] Bağlantı kabul edildi: /127.0.0.1:53418
+[2026-04-10 18:45:11] [WARN] Hatalı hesap şifresi: emircan
+[2026-04-10 18:45:11] [INFO] Bağlantı sonlandı (EOF): 
+[2026-04-10 18:45:11] [INFO] Bağlantı kabul edildi: /127.0.0.1:53419
+[2026-04-10 18:45:11] [WARN] Hatalı hesap şifresi: emircan
+[2026-04-10 18:45:11] [INFO] Bağlantı sonlandı (EOF): 
+[2026-04-10 18:45:11] [INFO] Bağlantı kabul edildi: /127.0.0.1:53420
+[2026-04-10 18:45:11] [WARN] Hatalı hesap şifresi: emircan
+[2026-04-10 18:45:11] [INFO] Bağlantı sonlandı (EOF): 
+[2026-04-10 18:45:12] [INFO] Bağlantı kabul edildi: /127.0.0.1:53421
+[2026-04-10 18:45:12] [WARN] Hatalı hesap şifresi: emircan
+[2026-04-10 18:45:12] [INFO] Bağlantı sonlandı (EOF): 
+[2026-04-10 18:45:12] [INFO] Bağlantı kabul edildi: /127.0.0.1:53422
+[2026-04-10 18:45:12] [WARN] Hatalı hesap şifresi: emircan
+[2026-04-10 18:45:12] [INFO] Bağlantı sonlandı (EOF): 
+[2026-04-10 18:45:12] [INFO] Bağlantı kabul edildi: /127.0.0.1:53423
+[2026-04-10 18:45:12] [WARN] Hatalı hesap şifresi: emircan
+[2026-04-10 18:45:12] [INFO] Bağlantı sonlandı (EOF): 
+[2026-04-10 18:45:12] [INFO] Bağlantı kabul edildi: /127.0.0.1:53424
+[2026-04-10 18:45:12] [WARN] Hatalı hesap şifresi: emircan
+[2026-04-10 18:45:12] [INFO] Bağlantı sonlandı (EOF): 
+[2026-04-10 18:45:12] [INFO] Bağlantı kabul edildi: /127.0.0.1:53425
+[2026-04-10 18:45:12] [WARN] Hatalı hesap şifresi: emircan
+[2026-04-10 18:45:12] [INFO] Bağlantı sonlandı (EOF): 
+[2026-04-10 18:45:13] [INFO] Bağlantı kabul edildi: /127.0.0.1:53426
+[2026-04-10 18:45:13] [WARN] Hatalı hesap şifresi: emircan
+[2026-04-10 18:45:13] [INFO] Bağlantı sonlandı (EOF): 
+[2026-04-10 18:45:22] [INFO] Bağlantı kabul edildi: /127.0.0.1:53429
+[2026-04-10 18:45:22] [INFO] Yeni istemci bağlandı: emircan oda=genel /127.0.0.1:53429
+[2026-04-10 18:45:49] [INFO] Genel mesaj: emir oda=genel
+[2026-04-10 18:45:51] [INFO] Genel mesaj: emircan oda=genel
+[2026-04-10 18:46:29] [INFO] FILE_UPLOAD_BEGIN emir WIN_20251030_18_56_13_Pro.mp4 7842565
+[2026-04-10 18:46:29] [INFO] FILE_UPLOAD_COMMIT emir -> WIN_20251030_18_56_13_Pro.mp4
+[2026-04-10 18:46:43] [INFO] Genel mesaj: emir oda=genel
+[2026-04-10 18:46:45] [INFO] Genel mesaj: emir oda=genel
+[2026-04-10 18:47:45] [INFO] Dosya paylaşımı: emir -> WhatsApp Image 2026-03-02 at 12.08.48 (1).jpeg
+[2026-04-10 18:49:33] [INFO] Özel mesaj: emircan -> emir
+[2026-04-10 18:50:14] [INFO] LOGOUT: emircan
+[2026-04-10 18:50:14] [INFO] İstemci ayrıldı: emircan
+[2026-04-10 18:50:41] [INFO] Sunucu dinlemede: port 9000
+[2026-04-10 18:51:01] [INFO] Bağlantı kabul edildi: /127.0.0.1:63337
+[2026-04-10 18:51:01] [INFO] Yeni istemci bağlandı: can oda=genel /127.0.0.1:63337
+[2026-04-10 18:51:12] [INFO] Bağlantı kabul edildi: /127.0.0.1:51846
+[2026-04-10 18:51:12] [INFO] Yeni istemci bağlandı: emier oda=genel /127.0.0.1:51846
+[2026-04-10 18:51:16] [INFO] Genel mesaj: emier oda=genel
+[2026-04-10 18:51:20] [INFO] Genel mesaj: can oda=genel
+[2026-04-10 18:51:44] [INFO] Dosya paylaşımı: emier -> Algoritma-Bolum 1.pdf
+[2026-04-10 18:52:04] [INFO] Dosya indirme: can <- Algoritma-Bolum 1.pdf (emier)
+[2026-04-10 18:52:18] [INFO] LOGOUT: can
+[2026-04-10 18:52:18] [INFO] İstemci ayrıldı: can
+[2026-04-10 18:52:20] [INFO] LOGOUT: emier
+[2026-04-10 18:52:20] [INFO] İstemci ayrıldı: emier

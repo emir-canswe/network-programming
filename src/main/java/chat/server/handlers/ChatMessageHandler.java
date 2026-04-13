@@ -44,14 +44,19 @@ public final class ChatMessageHandler implements ClientRequestHandler {
             .info("Özel mesaj hedefi yok: " + session.getUsername() + " -> " + targetName);
         return;
       }
-      broadcaster.sendPrivate(target.get(), session.getUsername(), now, body);
+      long pid = services.nextPrivateMessageId();
+      broadcaster.sendPrivate(target.get(), session.getUsername(), now, pid, body);
+      services.incPrivateCount();
       services
           .logger()
           .info("Özel mesaj: " + session.getUsername() + " -> " + targetName);
       return;
     }
-    broadcaster.broadcastChat(session.getUsername(), now, text);
-    services.chatHistory().add(session.getUsername(), now, text);
-    services.logger().info("Genel mesaj: " + session.getUsername());
+    String room = session.getRoom();
+    long msgId =
+        services.chatHistory().add(session.getUsername(), now, text, room);
+    broadcaster.broadcastChat(session.getUsername(), now, msgId, text, room);
+    services.incBroadcastCount();
+    services.logger().info("Genel mesaj: " + session.getUsername() + " oda=" + room);
   }
 }

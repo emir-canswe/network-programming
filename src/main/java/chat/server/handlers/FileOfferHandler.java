@@ -5,6 +5,7 @@ import chat.server.ServerLimits;
 import chat.server.UserListBroadcaster;
 import chat.server.file.StoredFileRecord;
 import chat.server.session.ClientSession;
+import chat.server.util.FileMimeUtil;
 import java.io.IOException;
 
 public final class FileOfferHandler implements ClientRequestHandler {
@@ -43,11 +44,22 @@ public final class FileOfferHandler implements ClientRequestHandler {
       services.logger().error("Dosya kaydı hatası: " + e.getMessage());
       return;
     }
-    broadcaster.announceFile(session, session.getUsername(), rec.id(), filename, rec.sizeBytes());
+    String mime = FileMimeUtil.guessMime(filename);
+    String room = session.getRoom();
+    services.addFileBytesStored(data.length);
+    broadcaster.announceFile(
+        session, session.getUsername(), rec.id(), filename, rec.sizeBytes(), mime, room);
     broadcaster.announceFileToSelf(
-        session, session.getUsername(), rec.id(), filename, rec.sizeBytes());
-    broadcaster.sendLogToAll(
-        "[" + session.getUsername() + "] dosya paylaştı: " + filename + " (" + data.length + " bayt)");
+        session, session.getUsername(), rec.id(), filename, rec.sizeBytes(), mime);
+    broadcaster.sendLogToRoom(
+        room,
+        "["
+            + session.getUsername()
+            + "] dosya paylaştı: "
+            + filename
+            + " ("
+            + data.length
+            + " bayt)");
     services.logger().info("Dosya paylaşımı: " + session.getUsername() + " -> " + filename);
   }
 }

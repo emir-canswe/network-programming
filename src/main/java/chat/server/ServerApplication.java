@@ -46,13 +46,17 @@ import javax.swing.plaf.ColorUIResource;
 public final class ServerApplication extends JFrame {
 
   private final JPasswordField roomPasswordField = new JPasswordField(12);
+  private final JPasswordField accountPasswordField = new JPasswordField(12);
   private final JTextField portField = new JTextField("9000", 8);
+  private final JTextField banNameField = new JTextField(10);
   private final JTextField announceField = new JTextField(24);
   private final JButton announceBtn = new JButton("Tümüne duyuru");
   private final JButton startBtn = new JButton("Sunucuyu Başlat");
   private final JButton stopBtn = new JButton("Durdur");
   private final JTextArea logArea = new JTextArea(18, 60);
   private final DefaultListModel<String> userModel = new DefaultListModel<>();
+  private final JList<String> usersJList = new JList<>(userModel);
+  private final JLabel metricsLabel = new JLabel(" ");
 
   private final TimestampedLogger logger = new TimestampedLogger();
   private ChatServerServices services;
@@ -80,7 +84,9 @@ public final class ServerApplication extends JFrame {
     logArea.setBackground(MockupTheme.BG0);
 
     MockupTheme.stylePassword(roomPasswordField);
+    MockupTheme.stylePassword(accountPasswordField);
     MockupTheme.styleField(portField);
+    MockupTheme.styleField(banNameField);
     MockupTheme.styleField(announceField);
     MockupTheme.styleAccentButton(startBtn);
     MockupTheme.styleGhostButton(stopBtn);
@@ -104,9 +110,45 @@ public final class ServerApplication extends JFrame {
     top.add(portField);
     top.add(labelMuted("Oda şifresi (boş = kapalı):"));
     top.add(roomPasswordField);
+    top.add(labelMuted("Hesap şifresi (boş = kapalı):"));
+    top.add(accountPasswordField);
     top.add(startBtn);
     top.add(stopBtn);
     north.add(top);
+
+    JPanel admin = cardPanel();
+    admin.setLayout(new FlowLayout(FlowLayout.LEFT, 10, 8));
+    admin.add(labelMuted("Engelle / kaldır ad:"));
+    admin.add(banNameField);
+    JButton banBtn = new JButton("Engelle");
+    JButton unbanBtn = new JButton("Kaldır");
+    MockupTheme.styleGhostButton(banBtn);
+    MockupTheme.styleGhostButton(unbanBtn);
+    banBtn.addActionListener(
+        e -> {
+          if (services == null) {
+            return;
+          }
+          String n = banNameField.getText().trim();
+          if (n.length() < 2) {
+            JOptionPane.showMessageDialog(this, "Geçerli kullanıcı adı girin.");
+            return;
+          }
+          services.banUsername(n);
+          services.findActiveSession(n).ifPresent(ClientSession::close);
+          logger.info("BAN " + n);
+        });
+    unbanBtn.addActionListener(
+        e -> {
+          if (services == null) {
+            return;
+          }
+          services.unbanUsername(banNameField.getText().trim());
+          logger.info("UNBAN " + banNameField.getText().trim());
+        });
+    admin.add(banBtn);
+    admin.add(unbanBtn);
+    north.add(admin);
 
     JPanel ann = cardPanel();
     ann.setLayout(new FlowLayout(FlowLayout.LEFT, 10, 8));
@@ -122,11 +164,17 @@ public final class ServerApplication extends JFrame {
     hint.add(hi);
     north.add(hint);
 
-    JList<String> users = new JList<>(userModel);
-    MockupTheme.styleList(users);
-    users.setSelectionBackground(MockupTheme.AC);
-    users.setSelectionForeground(Color.WHITE);
-    JScrollPane usersScroll = new JScrollPane(users);
+    metricsLabel.setForeground(MockupTheme.T2);
+    metricsLabel.setFont(MockupTheme.FONT_SM);
+    JPanel met = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
+    met.setOpaque(false);
+    met.add(metricsLabel);
+    north.add(met);
+
+    MockupTheme.styleList(usersJList);
+    usersJList.setSelectionBackground(MockupTheme.AC);
+    usersJList.setSelectionForeground(Color.WHITE);
+    JScrollPane usersScroll = new JScrollPane(usersJList);
     usersScroll.setBorder(titledBorder("Çevrimiçi kullanıcılar"));
     usersScroll.getViewport().setBackground(MockupTheme.BG1);
 
@@ -141,6 +189,25 @@ public final class ServerApplication extends JFrame {
     JPanel eastCard = cardPanel();
     eastCard.setLayout(new BorderLayout());
     eastCard.add(usersScroll, BorderLayout.CENTER);
+    JButton kickBtn = new JButton("Seçiliyi at (kick)");
+    MockupTheme.styleGhostButton(kickBtn);
+    kickBtn.addActionListener(
+        e -> {
+          if (services == null) {
+            return;
+          }
+          String sel = usersJList.getSelectedValue();
+          if (sel == null) {
+            JOptionPane.showMessageDialog(this, "Listeden kullanıcı seçin.");
+            return;
+          }
+          services.findActiveSession(sel).ifPresent(ClientSession::close);
+          logger.info("KICK " + sel);
+        });
+    JPanel kickP = new JPanel(new FlowLayout(FlowLayout.CENTER));
+    kickP.setOpaque(false);
+    kickP.add(kickBtn);
+    eastCard.add(kickP, BorderLayout.SOUTH);
     east.add(eastCard, BorderLayout.CENTER);
 
     root.add(north, BorderLayout.NORTH);
@@ -158,6 +225,13 @@ public final class ServerApplication extends JFrame {
               for (String u : services.registry().usernames()) {
                 userModel.addElement(u);
               }
+              metricsLabel.setText(
+                  String.format(
+                      "Oturum: %d | Genel mesaj: %d | Özel: %d | Dosya: %,.2f MB",
+                      services.activeSessionCount(),
+                      services.totalBroadcastMessages(),
+                      services.totalPrivateMessages(),
+                      services.totalFileBytesStored() / (1024.0 * 1024.0)));
             });
     refresh.start();
 
@@ -271,6 +345,7 @@ public final class ServerApplication extends JFrame {
       services = new ChatServerServices(reg, files, logger);
       String pw = new String(roomPasswordField.getPassword());
       services.setRoomPassword(pw);
+      services.setAccountPassword(new String(accountPasswordField.getPassword()));
       broadcaster = new UserListBroadcaster(services);
       dispatcher = new ClientRequestDispatcher(services, broadcaster);
     } catch (IOException ex) {
@@ -291,6 +366,7 @@ public final class ServerApplication extends JFrame {
     announceBtn.setEnabled(true);
     portField.setEnabled(false);
     roomPasswordField.setEnabled(false);
+    accountPasswordField.setEnabled(false);
 
     logger.info("Sunucu dinlemede: port " + port);
 
@@ -333,6 +409,7 @@ public final class ServerApplication extends JFrame {
     announceBtn.setEnabled(false);
     portField.setEnabled(true);
     roomPasswordField.setEnabled(true);
+    accountPasswordField.setEnabled(true);
     services = null;
     broadcaster = null;
     dispatcher = null;

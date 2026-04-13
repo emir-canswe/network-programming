@@ -12,10 +12,14 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.awt.Component;
+import java.awt.Container;
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -23,11 +27,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -37,8 +44,10 @@ import javax.swing.JPasswordField;
 import javax.swing.JProgressBar;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
+import javax.swing.JSlider;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.Timer;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
@@ -64,6 +73,10 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
   private final JTextField portField = new JTextField("9000", 5);
   private final JTextField userField = new JTextField(8);
   private final JPasswordField roomPasswordField = new JPasswordField(8);
+  private final JTextField roomNameField = new JTextField("genel", 6);
+  private final JPasswordField accountPasswordField = new JPasswordField(6);
+  private final JCheckBox autoReconnectBox = new JCheckBox("Oto. yeniden bağlan", false);
+  private final JSlider fontSlider = new JSlider(10, 20, 12);
   private final JButton connectBtn = new JButton("Bağlan");
   private final JButton refreshBtn = new JButton("↻");
   private final JLabel headerPortLabel = new JLabel("port —");
@@ -86,14 +99,49 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
   private JPanel filesListPanel;
   private JPanel logStripInner;
   private JScrollPane logStripScroll;
+  private JLabel typingStatusLabel;
 
   private final ChatNetworkClient net = new ChatNetworkClient(this);
   private volatile boolean loggedIn;
+  private final AtomicBoolean wantAutoReconnect = new AtomicBoolean();
+  private final Map<Long, JPanel> broadcastPanels = new ConcurrentHashMap<>();
+  private final Map<Long, JTextArea> broadcastBodies = new ConcurrentHashMap<>();
+  private long lastTypingSignalMs;
+  private Timer typingStopTimer;
+  private Timer typingClearTimer;
+  private volatile boolean lastLoginSucceeded;
 
   private ClientApplication() {
     super("ChatApp");
     setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
     setMinimumSize(new Dimension(960, 640));
+
+    typingStopTimer =
+        new Timer(
+            800,
+            e -> {
+              typingStopTimer.stop();
+              if (loggedIn) {
+                new Thread(
+                        () -> {
+                          try {
+                            net.sendTyping(false);
+                          } catch (IOException ignored) {
+                          }
+                        },
+                        "typing-stop")
+                    .start();
+              }
+            });
+    typingClearTimer =
+        new Timer(
+            2500,
+            e -> {
+              typingClearTimer.stop();
+              if (typingStatusLabel != null) {
+                typingStatusLabel.setText(" ");
+              }
+            });
 
     getContentPane().setBackground(MockupTheme.BG0);
     ((JPanel) getContentPane()).setBorder(new EmptyBorder(0, 0, 0, 0));
@@ -108,6 +156,14 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
     MockupTheme.styleField(portField);
     MockupTheme.styleField(userField);
     MockupTheme.stylePassword(roomPasswordField);
+    MockupTheme.styleField(roomNameField);
+    MockupTheme.stylePassword(accountPasswordField);
+    autoReconnectBox.setForeground(MockupTheme.T2);
+    autoReconnectBox.setOpaque(false);
+    fontSlider.setOpaque(false);
+    fontSlider.setMajorTickSpacing(2);
+    fontSlider.setPaintTicks(true);
+    fontSlider.addChangeListener(e -> applyFontScale());
     styleSmallButton(refreshBtn);
     MockupTheme.styleAccentButton(connectBtn);
 
@@ -164,6 +220,7 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
             new DocumentListener() {
               void u() {
                 updateTargetPreview();
+                signalTyping();
               }
 
               @Override
@@ -289,20 +346,37 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
   }
 
   private JPanel buildConnectStrip() {
-    JPanel strip = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
-    strip.setBackground(MockupTheme.BG1);
-    strip.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, MockupTheme.BD));
-    addMuted(strip, "Sunucu");
-    strip.add(hostField);
-    addMuted(strip, "Port");
-    strip.add(portField);
-    addMuted(strip, "Kullanıcı");
-    strip.add(userField);
-    addMuted(strip, "Oda şifresi");
-    strip.add(roomPasswordField);
-    strip.add(connectBtn);
-    strip.add(refreshBtn);
-    return strip;
+    JPanel outer = new JPanel();
+    outer.setLayout(new BoxLayout(outer, BoxLayout.Y_AXIS));
+    outer.setBackground(MockupTheme.BG1);
+    outer.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, MockupTheme.BD));
+
+    JPanel row1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 6));
+    row1.setOpaque(false);
+    addMuted(row1, "Sunucu");
+    row1.add(hostField);
+    addMuted(row1, "Port");
+    row1.add(portField);
+    addMuted(row1, "Kullanıcı");
+    row1.add(userField);
+    addMuted(row1, "Oda şifresi");
+    row1.add(roomPasswordField);
+    addMuted(row1, "Oda adı");
+    row1.add(roomNameField);
+    addMuted(row1, "Hesap şifresi");
+    row1.add(accountPasswordField);
+    row1.add(connectBtn);
+    row1.add(refreshBtn);
+
+    JPanel row2 = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 6));
+    row2.setOpaque(false);
+    row2.add(autoReconnectBox);
+    addMuted(row2, "Yazı px");
+    row2.add(fontSlider);
+
+    outer.add(row1);
+    outer.add(row2);
+    return outer;
   }
 
   private static void addMuted(JPanel strip, String text) {
@@ -314,7 +388,7 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
 
   private JPanel buildSidebar() {
     JPanel side = new JPanel(new BorderLayout());
-    side.setPreferredSize(new Dimension(196, 400));
+    side.setPreferredSize(new Dimension(220, 400));
     side.setBackground(MockupTheme.BG1);
     side.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, MockupTheme.BD));
 
@@ -409,8 +483,13 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
     messagesScroll.getViewport().setBackground(MockupTheme.BG0);
     messagesScroll.getVerticalScrollBar().setUnitIncrement(16);
 
+    typingStatusLabel = new JLabel(" ");
+    typingStatusLabel.setFont(MockupTheme.FONT_XS);
+    typingStatusLabel.setForeground(MockupTheme.AC3);
+    typingStatusLabel.setBorder(new EmptyBorder(2, 20, 2, 20));
     JPanel scrollWrap = new JPanel(new BorderLayout());
     scrollWrap.setOpaque(false);
+    scrollWrap.add(typingStatusLabel, BorderLayout.NORTH);
     scrollWrap.add(messagesScroll, BorderLayout.CENTER);
 
     JButton scrollBottom = new JButton("↓");
@@ -486,6 +565,114 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
     b.setBorder(new LineBorder(MockupTheme.BD2, 1, true));
   }
 
+  private void applyFontScale() {
+    float px = fontSlider.getValue();
+    ChatRowFactory.UI_SCALE = px / 12f;
+    messageArea.setFont(messageArea.getFont().deriveFont(px));
+    if (messagesInner != null) {
+      messagesInner.revalidate();
+      messagesInner.repaint();
+    }
+  }
+
+  private void signalTyping() {
+    if (!loggedIn) {
+      return;
+    }
+    long now = System.currentTimeMillis();
+    if (now - lastTypingSignalMs > 2000) {
+      lastTypingSignalMs = now;
+      new Thread(
+              () -> {
+                try {
+                  net.sendTyping(true);
+                } catch (IOException ignored) {
+                }
+              },
+              "typing")
+          .start();
+    }
+    typingStopTimer.restart();
+  }
+
+  private static JTextArea findFirstTextArea(Container root) {
+    for (Component c : root.getComponents()) {
+      if (c instanceof JTextArea ta) {
+        return ta;
+      }
+      if (c instanceof Container co) {
+        JTextArea inner = findFirstTextArea(co);
+        if (inner != null) {
+          return inner;
+        }
+      }
+    }
+    return null;
+  }
+
+  private void registerBroadcastMessage(long messageId, JPanel row) {
+    if (messageId <= 0) {
+      return;
+    }
+    broadcastPanels.put(messageId, row);
+    JTextArea ta = findFirstTextArea(row);
+    if (ta != null) {
+      broadcastBodies.put(messageId, ta);
+    }
+  }
+
+  private void appendLocalChatLogFile(String line) {
+    String user = userField.getText().trim();
+    if (user.length() < 2) {
+      return;
+    }
+    Path p = Path.of("chat_local_" + user + ".txt");
+    String ts = LOCAL_TIME.format(Instant.now());
+    try {
+      Files.writeString(
+          p,
+          "[" + ts + "] " + line + System.lineSeparator(),
+          StandardCharsets.UTF_8,
+          StandardOpenOption.CREATE,
+          StandardOpenOption.APPEND);
+    } catch (IOException ignored) {
+    }
+  }
+
+  private void reconnectLoop() {
+    int delaySec = 2;
+    for (int i = 0; i < 30 && autoReconnectBox.isSelected() && lastLoginSucceeded; i++) {
+      try {
+        TimeUnit.SECONDS.sleep(delaySec);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        return;
+      }
+      if (net.isConnected()) {
+        return;
+      }
+      try {
+        String host = hostField.getText().trim();
+        int port = Integer.parseInt(portField.getText().trim());
+        String user = userField.getText().trim();
+        String rp = new String(roomPasswordField.getPassword());
+        String rn = roomNameField.getText().trim();
+        String ap = new String(accountPasswordField.getPassword());
+        net.connect(host, port, user, rp, rn, ap);
+        SwingUtilities.invokeLater(
+            () -> {
+              connectBtn.setEnabled(false);
+              appendLogLocal("Yeniden bağlantı soketi açıldı; giriş yanıtı bekleniyor…");
+            });
+        return;
+      } catch (Exception ex) {
+        SwingUtilities.invokeLater(
+            () -> appendLogLocal("Yeniden bağlanma denemesi: " + ex.getMessage()));
+        delaySec = Math.min(30, delaySec + 2);
+      }
+    }
+  }
+
   private void setConnectionStatus(boolean connected) {
     statusDot.setForeground(connected ? MockupTheme.GR : MockupTheme.T2);
     if (connected) {
@@ -520,6 +707,8 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
   }
 
   private void clearMessages() {
+    broadcastPanels.clear();
+    broadcastBodies.clear();
     messagesInner.removeAll();
     messagesInner.add(Box.createVerticalGlue());
     messagesInner.revalidate();
@@ -573,7 +762,11 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
       FileOffer fo = fileModel.getElementAt(i);
       filesListPanel.add(
           ChatRowFactory.fileSidebarRow(
-              fo.filename(), fo.fromUser(), fo.size(), () -> doDownload(fo)));
+              fo.filename(),
+              fo.fromUser(),
+              fo.size(),
+              fo.mime(),
+              () -> doDownload(fo)));
     }
     filesListPanel.revalidate();
     filesListPanel.repaint();
@@ -603,6 +796,7 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
     } else {
       SwingUtilities.invokeLater(r);
     }
+    appendLocalChatLogFile(line);
   }
 
   private void doConnect() {
@@ -620,12 +814,14 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
       return;
     }
     String pw = new String(roomPasswordField.getPassword());
+    String room = roomNameField.getText().trim();
+    String acc = new String(accountPasswordField.getPassword());
     updateHeaderPort();
     connectBtn.setEnabled(false);
     new Thread(
             () -> {
               try {
-                net.connect(host, port, user, pw);
+                net.connect(host, port, user, pw, room, acc);
               } catch (IOException ex) {
                 SwingUtilities.invokeLater(
                     () -> {
@@ -640,6 +836,7 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
   }
 
   private void doLogout() {
+    lastLoginSucceeded = false;
     new Thread(
             () -> {
               try {
@@ -809,6 +1006,7 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
   public void onAckLogin(boolean ok, String message) {
     appendLogLocal(message);
     if (ok) {
+      lastLoginSucceeded = true;
       loggedIn = true;
       updateHeaderPort();
       setConnectionStatus(true);
@@ -818,6 +1016,7 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
       messageArea.setEnabled(true);
       refreshBtn.setEnabled(true);
     } else {
+      lastLoginSucceeded = false;
       connectBtn.setEnabled(true);
       net.disconnect();
     }
@@ -837,31 +1036,87 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
   }
 
   @Override
-  public void onChatBroadcast(String from, long epochMs, String text) {
+  public void onChatBroadcast(String from, long epochMs, long messageId, String text) {
     String me = userField.getText().trim();
     SwingUtilities.invokeLater(
         () -> {
           if (from.equalsIgnoreCase(me)) {
-            appendBubble(ChatRowFactory.outgoingBubbleRow(shortTime(epochMs), text, false, null));
+            JPanel row =
+                ChatRowFactory.outgoingBubbleRow(
+                    shortTime(epochMs),
+                    text,
+                    false,
+                    null,
+                    messageId,
+                    () -> {
+                      String nt =
+                          JOptionPane.showInputDialog(
+                              ClientApplication.this, "Yeni metin:", text);
+                      if (nt != null && !nt.isBlank()) {
+                        new Thread(
+                                () -> {
+                                  try {
+                                    net.sendEditMessage(messageId, nt.strip());
+                                  } catch (IOException ex) {
+                                    SwingUtilities.invokeLater(
+                                        () ->
+                                            appendLogLocal(
+                                                "Düzenleme gönderilemedi: " + ex.getMessage()));
+                                  }
+                                },
+                                "edit-msg")
+                            .start();
+                      }
+                    },
+                    () -> {
+                      int c =
+                          JOptionPane.showConfirmDialog(
+                              ClientApplication.this,
+                              "Bu mesaj silinsin mi?",
+                              "Onay",
+                              JOptionPane.YES_NO_OPTION);
+                      if (c == JOptionPane.YES_OPTION) {
+                        new Thread(
+                                () -> {
+                                  try {
+                                    net.sendDeleteMessage(messageId);
+                                  } catch (IOException ex) {
+                                    SwingUtilities.invokeLater(
+                                        () ->
+                                            appendLogLocal(
+                                                "Silme gönderilemedi: " + ex.getMessage()));
+                                  }
+                                },
+                                "del-msg")
+                            .start();
+                      }
+                    });
+            appendBubble(row);
+            registerBroadcastMessage(messageId, row);
           } else {
-            appendBubble(
+            JPanel row =
                 ChatRowFactory.incomingMessageGroup(
-                    from, shortTime(epochMs), text, false, null));
+                    from, shortTime(epochMs), text, false, null);
+            appendBubble(row);
+            registerBroadcastMessage(messageId, row);
           }
+          appendLocalChatLogFile(from + ": " + text);
         });
   }
 
   @Override
-  public void onChatPrivate(String from, long epochMs, String text) {
+  public void onChatPrivate(String from, long epochMs, long messageId, String text) {
     SwingUtilities.invokeLater(
-        () ->
-            appendBubble(
-                ChatRowFactory.incomingMessageGroup(
-                    from,
-                    shortTime(epochMs),
-                    text,
-                    true,
-                    from + "'ten özel")));
+        () -> {
+          appendBubble(
+              ChatRowFactory.incomingMessageGroup(
+                  from,
+                  shortTime(epochMs),
+                  text,
+                  true,
+                  from + "'ten özel"));
+          appendLocalChatLogFile("(özel) " + from + ": " + text);
+        });
   }
 
   @Override
@@ -870,8 +1125,9 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
   }
 
   @Override
-  public void onFileAvailable(String id, String fromUser, String filename, long size) {
-    FileOffer fo = new FileOffer(id, fromUser, filename, size);
+  public void onFileAvailable(
+      String id, String fromUser, String filename, long size, String mime) {
+    FileOffer fo = new FileOffer(id, fromUser, filename, size, mime);
     filesById.put(id, fo);
     for (int i = fileModel.size() - 1; i >= 0; i--) {
       if (fileModel.get(i).id().equals(id)) {
@@ -936,19 +1192,116 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
           sep.setAlignmentX(JLabel.CENTER_ALIGNMENT);
           messagesInner.add(sep);
           for (HistoryEntry e : entries) {
+            long mid = e.messageId();
             if (e.fromUser().equalsIgnoreCase(me)) {
-              messagesInner.add(
+              JPanel row =
                   ChatRowFactory.outgoingBubbleRow(
-                      shortTime(e.epochMs()), e.text(), false, null));
+                      shortTime(e.epochMs()),
+                      e.text(),
+                      false,
+                      null,
+                      mid,
+                      () -> {
+                        String nt =
+                            JOptionPane.showInputDialog(
+                                ClientApplication.this, "Yeni metin:", e.text());
+                        if (nt != null && !nt.isBlank()) {
+                          new Thread(
+                                  () -> {
+                                    try {
+                                      net.sendEditMessage(mid, nt.strip());
+                                    } catch (IOException ex) {
+                                      SwingUtilities.invokeLater(
+                                          () ->
+                                              appendLogLocal(
+                                                  "Düzenleme gönderilemedi: " + ex.getMessage()));
+                                    }
+                                  },
+                                  "edit-msg")
+                              .start();
+                        }
+                      },
+                      () -> {
+                        int c =
+                            JOptionPane.showConfirmDialog(
+                                ClientApplication.this,
+                                "Bu mesaj silinsin mi?",
+                                "Onay",
+                                JOptionPane.YES_NO_OPTION);
+                        if (c == JOptionPane.YES_OPTION) {
+                          new Thread(
+                                  () -> {
+                                    try {
+                                      net.sendDeleteMessage(mid);
+                                    } catch (IOException ex) {
+                                      SwingUtilities.invokeLater(
+                                          () ->
+                                              appendLogLocal(
+                                                  "Silme gönderilemedi: " + ex.getMessage()));
+                                    }
+                                  },
+                                  "del-msg")
+                              .start();
+                        }
+                      });
+              messagesInner.add(row);
+              registerBroadcastMessage(mid, row);
             } else {
-              messagesInner.add(
+              JPanel row =
                   ChatRowFactory.incomingMessageGroup(
-                      e.fromUser(), shortTime(e.epochMs()), e.text(), false, null));
+                      e.fromUser(), shortTime(e.epochMs()), e.text(), false, null);
+              messagesInner.add(row);
+              registerBroadcastMessage(mid, row);
             }
           }
           messagesInner.revalidate();
           messagesInner.repaint();
           scrollChatToBottom();
+        });
+  }
+
+  @Override
+  public void onUserTyping(String username, boolean started) {
+    SwingUtilities.invokeLater(
+        () -> {
+          if (username == null) {
+            return;
+          }
+          String me = userField.getText().trim();
+          if (username.equalsIgnoreCase(me)) {
+            return;
+          }
+          if (started) {
+            typingStatusLabel.setText(username + " yazıyor…");
+            typingClearTimer.restart();
+          }
+        });
+  }
+
+  @Override
+  public void onMessageEdited(long messageId, String newText, String editedBy) {
+    SwingUtilities.invokeLater(
+        () -> {
+          JTextArea ta = broadcastBodies.get(messageId);
+          if (ta != null) {
+            ta.setText(newText);
+          }
+          appendLogLocal("Mesaj düzenlendi: #" + messageId + " (" + editedBy + ")");
+        });
+  }
+
+  @Override
+  public void onMessageDeleted(long messageId) {
+    SwingUtilities.invokeLater(
+        () -> {
+          JPanel p = broadcastPanels.remove(messageId);
+          broadcastBodies.remove(messageId);
+          if (p != null) {
+            messagesInner.remove(p);
+            messagesInner.revalidate();
+            messagesInner.repaint();
+          }
+          appendLogLocal("Mesaj silindi: #" + messageId);
         });
   }
 
@@ -965,11 +1318,15 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
   @Override
   public void onDisconnected(String reason) {
     appendLogLocal(reason);
+    boolean tryReconnect = autoReconnectBox.isSelected() && lastLoginSucceeded;
     net.disconnect();
     resetUiAfterDisconnect();
+    if (tryReconnect) {
+      new Thread(this::reconnectLoop, "reconnect").start();
+    }
   }
 
-  public record FileOffer(String id, String fromUser, String filename, long size) {}
+  public record FileOffer(String id, String fromUser, String filename, long size, String mime) {}
 
   public static void main(String[] args) {
     MockupTheme.installSwingDefaults();
