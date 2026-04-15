@@ -1,0 +1,7 @@
+[2026-04-15 15:31:49] Bağlantı kabul edildi. Hoş geldiniz, cancan (oda: genel).
+[2026-04-15 15:31:49] Sunucu: [cancan] sohbete katıldı.
+[2026-04-15 15:32:20] Dosya sunucuya gönderildi: 4.Veri Serileştirme ve JSON.pdf
+[2026-04-15 15:32:20] Sunucu: [cancan] dosya paylaştı: 4.Veri Serileştirme ve JSON.pdf (205208 bayt)
+[2026-04-15 15:32:20] Yeni dosya: 4.Veri Serileştirme ve JSON.pdf (cancan)
+[2026-04-15 15:33:02] Bildirim: USER_LEFT|ali
+[2026-04-15 15:33:02] Sunucu: [ali] sohbetten ayrıldı.
