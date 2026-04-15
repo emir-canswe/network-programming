@@ -4,6 +4,7 @@ import chat.server.file.SharedFileStore;
 import chat.server.logging.TimestampedLogger;
 import chat.server.registry.OnlineUserRegistry;
 import chat.server.session.ClientSession;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -102,7 +103,20 @@ public final class ChatServerServices {
     if (username == null) {
       return Optional.empty();
     }
-    return Optional.ofNullable(activeSessions.get(username));
+    String key = username.trim();
+    if (key.isEmpty()) {
+      return Optional.empty();
+    }
+    ClientSession direct = activeSessions.get(key);
+    if (direct != null) {
+      return Optional.of(direct);
+    }
+    for (Map.Entry<String, ClientSession> e : activeSessions.entrySet()) {
+      if (e.getKey().equalsIgnoreCase(key)) {
+        return Optional.of(e.getValue());
+      }
+    }
+    return Optional.empty();
   }
 
   public long nextPrivateMessageId() {

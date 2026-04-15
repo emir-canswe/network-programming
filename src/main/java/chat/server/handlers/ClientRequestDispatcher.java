@@ -12,9 +12,11 @@ import java.util.Map;
  */
 public final class ClientRequestDispatcher {
 
+  private final ChatServerServices services;
   private final Map<Integer, ClientRequestHandler> handlers = new HashMap<>();
 
   public ClientRequestDispatcher(ChatServerServices services, UserListBroadcaster broadcaster) {
+    this.services = services;
     register(chat.protocol.OpCode.C_LOGIN, new LoginHandler(services, broadcaster));
     register(chat.protocol.OpCode.C_CHAT, new ChatMessageHandler(services, broadcaster));
     register(chat.protocol.OpCode.C_LOGOUT, new LogoutHandler(services));
@@ -38,6 +40,11 @@ public final class ClientRequestDispatcher {
   }
 
   public void dispatch(int op, ClientSession session) throws IOException {
+    if (session.isAuthenticated() && services.isBanned(session.getUsername())) {
+      session.sendError("Hesabınız engellendi.");
+      session.close();
+      return;
+    }
     ClientRequestHandler h = handlers.get(op);
     if (h == null) {
       session.sendError("Bilinmeyen komut: " + op);
