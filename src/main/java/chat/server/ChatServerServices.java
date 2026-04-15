@@ -18,7 +18,6 @@ public final class ChatServerServices {
   private final OnlineUserRegistry registry;
   private final SharedFileStore fileStore;
   private final TimestampedLogger logger;
-  private final ChatHistoryBuffer chatHistory = new ChatHistoryBuffer(50);
   private volatile String roomPassword;
   /** Boş değilse girişte 4. alan ile eşleşmeli (opsiyonel hesap şifresi). */
   private volatile String accountPassword;
@@ -29,6 +28,7 @@ public final class ChatServerServices {
   private final AtomicLong totalPrivateMessages = new AtomicLong();
   private final AtomicLong totalFileBytesStored = new AtomicLong();
   private final AtomicLong nextPrivateMessageId = new AtomicLong(1);
+  private final AtomicLong nextBroadcastMessageId = new AtomicLong(1);
 
   public ChatServerServices(
       OnlineUserRegistry registry, SharedFileStore fileStore, TimestampedLogger logger) {
@@ -49,8 +49,9 @@ public final class ChatServerServices {
     return logger;
   }
 
-  public ChatHistoryBuffer chatHistory() {
-    return chatHistory;
+  /** Genel sohbet mesajları için artan kimlik (ödev: mesajda kullanıcı adı + zaman). */
+  public long nextBroadcastMessageId() {
+    return nextBroadcastMessageId.getAndIncrement();
   }
 
   public void setRoomPassword(String password) {

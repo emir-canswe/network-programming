@@ -5,7 +5,6 @@ import chat.protocol.ProtocolPayload;
 import chat.protocol.ProtocolReader;
 import chat.protocol.ProtocolWriter;
 import chat.server.ChatServerServices;
-import chat.server.RateLimiter;
 import chat.server.UserListBroadcaster;
 import chat.server.handlers.ClientRequestDispatcher;
 import java.io.ByteArrayOutputStream;
@@ -31,12 +30,7 @@ public final class ClientSession implements ClientConnection, Runnable {
   private volatile String room = "genel";
   private volatile boolean authenticated;
   private volatile boolean running = true;
-  private final RateLimiter chatRateLimiter = new RateLimiter(15, 10_000);
   private volatile PendingFileUpload pendingUpload;
-
-  public RateLimiter chatRateLimiter() {
-    return chatRateLimiter;
-  }
 
   /** Parçalı dosya yükleme tamponu (oturum başına en fazla bir aktif yükleme). */
   public static final class PendingFileUpload {

@@ -21,10 +21,6 @@ public final class ChatMessageHandler implements ClientRequestHandler {
 
   @Override
   public void handle(ClientSession session) throws IOException {
-    if (!session.chatRateLimiter().tryAcquire()) {
-      session.sendError("Çok hızlı mesaj gönderiyorsunuz. Bir süre sonra tekrar deneyin.");
-      return;
-    }
     String text = session.protocolReader().readUtf8();
     if (text.isBlank()) {
       session.sendError("Boş mesaj gönderilemez.");
@@ -53,8 +49,7 @@ public final class ChatMessageHandler implements ClientRequestHandler {
       return;
     }
     String room = session.getRoom();
-    long msgId =
-        services.chatHistory().add(session.getUsername(), now, text, room);
+    long msgId = services.nextBroadcastMessageId();
     broadcaster.broadcastChat(session.getUsername(), now, msgId, text, room);
     services.incBroadcastCount();
     services.logger().info("Genel mesaj: " + session.getUsername() + " oda=" + room);

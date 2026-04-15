@@ -15,8 +15,6 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextArea;
 import javax.swing.SwingConstants;
-import javax.swing.JMenuItem;
-import javax.swing.JPopupMenu;
 import javax.swing.border.EmptyBorder;
 
 /** dark_chat_ui_mockup.html yapısına uygun satırlar. */
@@ -279,53 +277,6 @@ public final class ChatRowFactory {
     left.add(bubble);
     row.add(left, BorderLayout.WEST);
     return row;
-  }
-
-  /**
-   * Genel sohbette kendi mesajınız için sağ tık: düzenle / sil (sunucu 2 dk penceresi).
-   */
-  public static JPanel outgoingBubbleRow(
-      String time,
-      String body,
-      boolean isPrivate,
-      String privateCaption,
-      long broadcastMessageId,
-      Runnable onEdit,
-      Runnable onDelete) {
-    JPanel row = outgoingBubbleRow(time, body, isPrivate, privateCaption);
-    if (!isPrivate && broadcastMessageId >= 0 && onEdit != null && onDelete != null) {
-      attachBroadcastPopup(row, onEdit, onDelete);
-    }
-    return row;
-  }
-
-  private static void attachBroadcastPopup(JPanel row, Runnable onEdit, Runnable onDelete) {
-    row.addMouseListener(
-        new java.awt.event.MouseAdapter() {
-          private void maybe(java.awt.event.MouseEvent e) {
-            if (!e.isPopupTrigger()) {
-              return;
-            }
-            JPopupMenu m = new JPopupMenu();
-            JMenuItem ed = new JMenuItem("Düzenle (2 dk)");
-            ed.addActionListener(a -> onEdit.run());
-            JMenuItem del = new JMenuItem("Sil (2 dk)");
-            del.addActionListener(a -> onDelete.run());
-            m.add(ed);
-            m.add(del);
-            m.show(e.getComponent(), e.getX(), e.getY());
-          }
-
-          @Override
-          public void mousePressed(java.awt.event.MouseEvent e) {
-            maybe(e);
-          }
-
-          @Override
-          public void mouseReleased(java.awt.event.MouseEvent e) {
-            maybe(e);
-          }
-        });
   }
 
   public static JPanel outgoingBubbleRow(String time, String body, boolean isPrivate, String privateCaption) {

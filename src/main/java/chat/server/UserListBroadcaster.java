@@ -68,21 +68,6 @@ public final class UserListBroadcaster {
         });
   }
 
-  public void sendChatHistoryTo(ClientConnection c, List<ChatHistoryBuffer.Entry> entries)
-      throws IOException {
-    c.send(
-        w -> {
-          w.writeOpcode(OpCode.S_CHAT_HISTORY);
-          w.writeInt(entries.size());
-          for (ChatHistoryBuffer.Entry e : entries) {
-            w.writeUtf8(e.fromUser());
-            w.writeLong(e.epochMs());
-            w.writeLong(e.messageId());
-            w.writeUtf8(e.text());
-          }
-        });
-  }
-
   public void notifyOthersInRoom(String exceptUser, String room, String eventLine) {
     services
         .registry()
@@ -179,66 +164,6 @@ public final class UserListBroadcaster {
                       w.writeLong(epochMs);
                       w.writeLong(messageId);
                       w.writeUtf8(text);
-                    });
-              } catch (IOException ignored) {
-              }
-            });
-  }
-
-  public void sendTypingToRoom(String exceptUser, String room, String who, boolean started) {
-    services
-        .registry()
-        .forEachConnection(
-            c -> {
-              if (!sameRoom(c, room) || c.getUsername().equals(exceptUser)) {
-                return;
-              }
-              try {
-                c.send(
-                    w -> {
-                      w.writeOpcode(OpCode.S_USER_TYPING);
-                      w.writeUtf8(who);
-                      w.writeBoolean(started);
-                    });
-              } catch (IOException ignored) {
-              }
-            });
-  }
-
-  public void broadcastMessageEdited(String room, long messageId, String newText, String editedBy) {
-    services
-        .registry()
-        .forEachConnection(
-            c -> {
-              if (!sameRoom(c, room)) {
-                return;
-              }
-              try {
-                c.send(
-                    w -> {
-                      w.writeOpcode(OpCode.S_MESSAGE_EDITED);
-                      w.writeLong(messageId);
-                      w.writeUtf8(newText);
-                      w.writeUtf8(editedBy);
-                    });
-              } catch (IOException ignored) {
-              }
-            });
-  }
-
-  public void broadcastMessageDeleted(String room, long messageId) {
-    services
-        .registry()
-        .forEachConnection(
-            c -> {
-              if (!sameRoom(c, room)) {
-                return;
-              }
-              try {
-                c.send(
-                    w -> {
-                      w.writeOpcode(OpCode.S_MESSAGE_DELETED);
-                      w.writeLong(messageId);
                     });
               } catch (IOException ignored) {
               }

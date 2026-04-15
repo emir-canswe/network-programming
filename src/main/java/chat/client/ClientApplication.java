@@ -13,7 +13,6 @@ import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.Component;
-import java.awt.Container;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -23,7 +22,6 @@ import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -47,7 +45,6 @@ import javax.swing.JScrollPane;
 import javax.swing.JSlider;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
-import javax.swing.Timer;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
@@ -100,47 +97,16 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
   private JPanel filesListPanel;
   private JPanel logStripInner;
   private JScrollPane logStripScroll;
-  private JLabel typingStatusLabel;
 
   private final ChatNetworkClient net = new ChatNetworkClient(this);
   private volatile boolean loggedIn;
   private final AtomicBoolean wantAutoReconnect = new AtomicBoolean();
-  private final Map<Long, JPanel> broadcastPanels = new ConcurrentHashMap<>();
-  private final Map<Long, JTextArea> broadcastBodies = new ConcurrentHashMap<>();
-  private long lastTypingSignalMs;
-  private Timer typingStopTimer;
-  private Timer typingClearTimer;
   private volatile boolean lastLoginSucceeded;
 
   private ClientApplication() {
     super("ChatApp");
     setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
     setMinimumSize(new Dimension(960, 640));
-
-    typingStopTimer = new Timer(
-        800,
-        e -> {
-          typingStopTimer.stop();
-          if (loggedIn) {
-            new Thread(
-                () -> {
-                  try {
-                    net.sendTyping(false);
-                  } catch (IOException ignored) {
-                  }
-                },
-                "typing-stop")
-                .start();
-          }
-        });
-    typingClearTimer = new Timer(
-        2500,
-        e -> {
-          typingClearTimer.stop();
-          if (typingStatusLabel != null) {
-            typingStatusLabel.setText(" ");
-          }
-        });
 
     getContentPane().setBackground(MockupTheme.BG0);
     ((JPanel) getContentPane()).setBorder(new EmptyBorder(0, 0, 0, 0));
@@ -219,7 +185,6 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
             new DocumentListener() {
               void u() {
                 updateTargetPreview();
-                signalTyping();
               }
 
               @Override
@@ -500,13 +465,8 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
     messagesScroll.getViewport().setBackground(MockupTheme.BG0);
     messagesScroll.getVerticalScrollBar().setUnitIncrement(16);
 
-    typingStatusLabel = new JLabel(" ");
-    typingStatusLabel.setFont(MockupTheme.FONT_XS);
-    typingStatusLabel.setForeground(MockupTheme.AC3);
-    typingStatusLabel.setBorder(new EmptyBorder(2, 20, 2, 20));
     JPanel scrollWrap = new JPanel(new BorderLayout());
     scrollWrap.setOpaque(false);
-    scrollWrap.add(typingStatusLabel, BorderLayout.NORTH);
     scrollWrap.add(messagesScroll, BorderLayout.CENTER);
 
     JButton scrollBottom = new JButton("↓");
@@ -590,52 +550,6 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
     if (messagesInner != null) {
       messagesInner.revalidate();
       messagesInner.repaint();
-    }
-  }
-
-  private void signalTyping() {
-    if (!loggedIn) {
-      return;
-    }
-    long now = System.currentTimeMillis();
-    if (now - lastTypingSignalMs > 2000) {
-      lastTypingSignalMs = now;
-      new Thread(
-          () -> {
-            try {
-              net.sendTyping(true);
-            } catch (IOException ignored) {
-            }
-          },
-          "typing")
-          .start();
-    }
-    typingStopTimer.restart();
-  }
-
-  private static JTextArea findFirstTextArea(Container root) {
-    for (Component c : root.getComponents()) {
-      if (c instanceof JTextArea ta) {
-        return ta;
-      }
-      if (c instanceof Container co) {
-        JTextArea inner = findFirstTextArea(co);
-        if (inner != null) {
-          return inner;
-        }
-      }
-    }
-    return null;
-  }
-
-  private void registerBroadcastMessage(long messageId, JPanel row) {
-    if (messageId <= 0) {
-      return;
-    }
-    broadcastPanels.put(messageId, row);
-    JTextArea ta = findFirstTextArea(row);
-    if (ta != null) {
-      broadcastBodies.put(messageId, ta);
     }
   }
 
@@ -725,8 +639,6 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
   }
 
   private void clearMessages() {
-    broadcastPanels.clear();
-    broadcastBodies.clear();
     messagesInner.removeAll();
     messagesInner.add(Box.createVerticalGlue());
     messagesInner.revalidate();
@@ -891,7 +803,6 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
 
   private void resetUiAfterDisconnect() {
     loggedIn = false;
-    net.stopHeartbeat();
     setConnectionStatus(false);
     connectBtn.setEnabled(true);
     disconnectHeaderBtn.setEnabled(false);
@@ -1024,7 +935,6 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
       loggedIn = true;
       updateHeaderPort();
       setConnectionStatus(true);
-      net.startHeartbeatAfterLogin();
       disconnectHeaderBtn.setEnabled(true);
       sendBtn.setEnabled(true);
       messageArea.setEnabled(true);
@@ -1055,58 +965,12 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
     SwingUtilities.invokeLater(
         () -> {
           if (from.equalsIgnoreCase(me)) {
-            JPanel row = ChatRowFactory.outgoingBubbleRow(
-                shortTime(epochMs),
-                text,
-                false,
-                null,
-                messageId,
-                () -> {
-                  String nt = JOptionPane.showInputDialog(
-                      ClientApplication.this, "Yeni metin:", text);
-                  if (nt != null && !nt.isBlank()) {
-                    new Thread(
-                        () -> {
-                          try {
-                            net.sendEditMessage(messageId, nt.strip());
-                          } catch (IOException ex) {
-                            SwingUtilities.invokeLater(
-                                () -> appendLogLocal(
-                                    "Düzenleme gönderilemedi: " + ex.getMessage()));
-                          }
-                        },
-                        "edit-msg")
-                        .start();
-                  }
-                },
-                () -> {
-                  int c = JOptionPane.showConfirmDialog(
-                      ClientApplication.this,
-                      "Bu mesaj silinsin mi?",
-                      "Onay",
-                      JOptionPane.YES_NO_OPTION);
-                  if (c == JOptionPane.YES_OPTION) {
-                    new Thread(
-                        () -> {
-                          try {
-                            net.sendDeleteMessage(messageId);
-                          } catch (IOException ex) {
-                            SwingUtilities.invokeLater(
-                                () -> appendLogLocal(
-                                    "Silme gönderilemedi: " + ex.getMessage()));
-                          }
-                        },
-                        "del-msg")
-                        .start();
-                  }
-                });
-            appendBubble(row);
-            registerBroadcastMessage(messageId, row);
+            appendBubble(
+                ChatRowFactory.outgoingBubbleRow(shortTime(epochMs), text, false, null));
           } else {
-            JPanel row = ChatRowFactory.incomingMessageGroup(
-                from, shortTime(epochMs), text, false, null);
-            appendBubble(row);
-            registerBroadcastMessage(messageId, row);
+            appendBubble(
+                ChatRowFactory.incomingMessageGroup(
+                    from, shortTime(epochMs), text, false, null));
           }
           appendLocalChatLogFile(from + ": " + text);
         });
@@ -1184,127 +1048,6 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
   public void onFileDownloadProgressDone() {
     downloadBar.setVisible(false);
     downloadBar.setValue(0);
-  }
-
-  @Override
-  public void onChatHistory(List<HistoryEntry> entries) {
-    if (entries == null || entries.isEmpty()) {
-      return;
-    }
-    String me = userField.getText().trim();
-    SwingUtilities.invokeLater(
-        () -> {
-          JLabel sep = new JLabel("—— Geçmiş (" + entries.size() + " mesaj) ——");
-          sep.setForeground(MockupTheme.T2);
-          sep.setFont(MockupTheme.FONT_XS);
-          sep.setAlignmentX(JLabel.CENTER_ALIGNMENT);
-          messagesInner.add(sep);
-          for (HistoryEntry e : entries) {
-            long mid = e.messageId();
-            if (e.fromUser().equalsIgnoreCase(me)) {
-              JPanel row = ChatRowFactory.outgoingBubbleRow(
-                  shortTime(e.epochMs()),
-                  e.text(),
-                  false,
-                  null,
-                  mid,
-                  () -> {
-                    String nt = JOptionPane.showInputDialog(
-                        ClientApplication.this, "Yeni metin:", e.text());
-                    if (nt != null && !nt.isBlank()) {
-                      new Thread(
-                          () -> {
-                            try {
-                              net.sendEditMessage(mid, nt.strip());
-                            } catch (IOException ex) {
-                              SwingUtilities.invokeLater(
-                                  () -> appendLogLocal(
-                                      "Düzenleme gönderilemedi: " + ex.getMessage()));
-                            }
-                          },
-                          "edit-msg")
-                          .start();
-                    }
-                  },
-                  () -> {
-                    int c = JOptionPane.showConfirmDialog(
-                        ClientApplication.this,
-                        "Bu mesaj silinsin mi?",
-                        "Onay",
-                        JOptionPane.YES_NO_OPTION);
-                    if (c == JOptionPane.YES_OPTION) {
-                      new Thread(
-                          () -> {
-                            try {
-                              net.sendDeleteMessage(mid);
-                            } catch (IOException ex) {
-                              SwingUtilities.invokeLater(
-                                  () -> appendLogLocal(
-                                      "Silme gönderilemedi: " + ex.getMessage()));
-                            }
-                          },
-                          "del-msg")
-                          .start();
-                    }
-                  });
-              messagesInner.add(row);
-              registerBroadcastMessage(mid, row);
-            } else {
-              JPanel row = ChatRowFactory.incomingMessageGroup(
-                  e.fromUser(), shortTime(e.epochMs()), e.text(), false, null);
-              messagesInner.add(row);
-              registerBroadcastMessage(mid, row);
-            }
-          }
-          messagesInner.revalidate();
-          messagesInner.repaint();
-          scrollChatToBottom();
-        });
-  }
-
-  @Override
-  public void onUserTyping(String username, boolean started) {
-    SwingUtilities.invokeLater(
-        () -> {
-          if (username == null) {
-            return;
-          }
-          String me = userField.getText().trim();
-          if (username.equalsIgnoreCase(me)) {
-            return;
-          }
-          if (started) {
-            typingStatusLabel.setText(username + " yazıyor…");
-            typingClearTimer.restart();
-          }
-        });
-  }
-
-  @Override
-  public void onMessageEdited(long messageId, String newText, String editedBy) {
-    SwingUtilities.invokeLater(
-        () -> {
-          JTextArea ta = broadcastBodies.get(messageId);
-          if (ta != null) {
-            ta.setText(newText);
-          }
-          appendLogLocal("Mesaj düzenlendi: #" + messageId + " (" + editedBy + ")");
-        });
-  }
-
-  @Override
-  public void onMessageDeleted(long messageId) {
-    SwingUtilities.invokeLater(
-        () -> {
-          JPanel p = broadcastPanels.remove(messageId);
-          broadcastBodies.remove(messageId);
-          if (p != null) {
-            messagesInner.remove(p);
-            messagesInner.revalidate();
-            messagesInner.repaint();
-          }
-          appendLogLocal("Mesaj silindi: #" + messageId);
-        });
   }
 
   @Override

@@ -10,15 +10,10 @@ import java.net.Socket;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import javax.swing.SwingUtilities;
 
 /**
@@ -34,8 +29,6 @@ public final class ChatNetworkClient {
   private final ClientCallbacks ui;
   private final ExecutorService io = Executors.newSingleThreadExecutor();
   private final AtomicBoolean running = new AtomicBoolean();
-  private ScheduledExecutorService heartbeat;
-  private final AtomicLong lastPongMs = new AtomicLong(System.currentTimeMillis());
 
   private Socket socket;
   private ProtocolReader reader;
@@ -59,14 +52,12 @@ public final class ChatNetworkClient {
       String accountPassword)
       throws IOException {
     disconnectQuietly();
-    stopHeartbeat();
     Socket s = new Socket(host, port);
     s.setSoTimeout(0);
     this.socket = s;
     this.reader = new ProtocolReader(s.getInputStream());
     this.writer = new ProtocolWriter(s.getOutputStream());
     running.set(true);
-    lastPongMs.set(System.currentTimeMillis());
     io.submit(this::readLoop);
     String pw = roomPassword == null ? "" : roomPassword;
     String rn = roomName == null ? "" : roomName;
@@ -77,54 +68,6 @@ public final class ChatNetworkClient {
       writer.writeUtf8(pw);
       writer.writeUtf8(rn);
       writer.writeUtf8(ap);
-      writer.flush();
-    }
-  }
-
-  public void startHeartbeatAfterLogin() {
-    stopHeartbeat();
-    lastPongMs.set(System.currentTimeMillis());
-    heartbeat = Executors.newScheduledThreadPool(2);
-    heartbeat.scheduleAtFixedRate(
-        () -> {
-          try {
-            sendPing();
-          } catch (IOException ignored) {
-          }
-        },
-        25,
-        25,
-        TimeUnit.SECONDS);
-    heartbeat.scheduleAtFixedRate(
-        () -> {
-          if (!running.get() || socket == null || socket.isClosed()) {
-            return;
-          }
-          long last = lastPongMs.get();
-          if (System.currentTimeMillis() - last > 55_000) {
-            disconnect();
-            SwingUtilities.invokeLater(
-                () -> ui.onDisconnected("Sunucu yanıt vermiyor (bağlantı canlılık kontrolü)."));
-          }
-        },
-        12,
-        12,
-        TimeUnit.SECONDS);
-  }
-
-  public void stopHeartbeat() {
-    if (heartbeat != null) {
-      heartbeat.shutdownNow();
-      heartbeat = null;
-    }
-  }
-
-  private void sendPing() throws IOException {
-    synchronized (writeLock) {
-      if (writer == null) {
-        return;
-      }
-      writer.writeOpcode(OpCode.C_PING);
       writer.flush();
     }
   }
@@ -140,34 +83,6 @@ public final class ChatNetworkClient {
     synchronized (writeLock) {
       writer.writeOpcode(OpCode.C_CHAT);
       writer.writeUtf8(text);
-      writer.flush();
-    }
-  }
-
-  public void sendTyping(boolean started) throws IOException {
-    synchronized (writeLock) {
-      if (writer == null) {
-        return;
-      }
-      writer.writeOpcode(OpCode.C_TYPING);
-      writer.writeBoolean(started);
-      writer.flush();
-    }
-  }
-
-  public void sendEditMessage(long messageId, String newText) throws IOException {
-    synchronized (writeLock) {
-      writer.writeOpcode(OpCode.C_EDIT_MESSAGE);
-      writer.writeLong(messageId);
-      writer.writeUtf8(newText);
-      writer.flush();
-    }
-  }
-
-  public void sendDeleteMessage(long messageId) throws IOException {
-    synchronized (writeLock) {
-      writer.writeOpcode(OpCode.C_DELETE_MESSAGE);
-      writer.writeLong(messageId);
       writer.flush();
     }
   }
@@ -227,7 +142,6 @@ public final class ChatNetworkClient {
 
   public void disconnect() {
     running.set(false);
-    stopHeartbeat();
     try {
       if (socket != null) {
         socket.close();
@@ -241,7 +155,6 @@ public final class ChatNetworkClient {
 
   private void disconnectQuietly() {
     running.set(false);
-    stopHeartbeat();
     try {
       if (socket != null) {
         socket.close();
@@ -251,10 +164,6 @@ public final class ChatNetworkClient {
     socket = null;
     reader = null;
     writer = null;
-  }
-
-  private void notePong() {
-    lastPongMs.set(System.currentTimeMillis());
   }
 
   private void readLoop() {
@@ -318,35 +227,6 @@ public final class ChatNetworkClient {
           case OpCode.S_SERVER_LOG -> {
             String log = reader.readUtf8();
             SwingUtilities.invokeLater(() -> ui.onServerLog(log));
-          }
-          case OpCode.S_PONG -> notePong();
-          case OpCode.S_CHAT_HISTORY -> {
-            int n = reader.readInt();
-            List<ClientCallbacks.HistoryEntry> list = new ArrayList<>(n);
-            for (int i = 0; i < n; i++) {
-              String from = reader.readUtf8();
-              long t = reader.readLong();
-              long mid = reader.readLong();
-              String body = reader.readUtf8();
-              list.add(new ClientCallbacks.HistoryEntry(from, t, mid, body));
-            }
-            List<ClientCallbacks.HistoryEntry> copy = List.copyOf(list);
-            SwingUtilities.invokeLater(() -> ui.onChatHistory(copy));
-          }
-          case OpCode.S_USER_TYPING -> {
-            String who = reader.readUtf8();
-            boolean st = reader.readBoolean();
-            SwingUtilities.invokeLater(() -> ui.onUserTyping(who, st));
-          }
-          case OpCode.S_MESSAGE_EDITED -> {
-            long mid = reader.readLong();
-            String nt = reader.readUtf8();
-            String by = reader.readUtf8();
-            SwingUtilities.invokeLater(() -> ui.onMessageEdited(mid, nt, by));
-          }
-          case OpCode.S_MESSAGE_DELETED -> {
-            long mid = reader.readLong();
-            SwingUtilities.invokeLater(() -> ui.onMessageDeleted(mid));
           }
           default ->
               SwingUtilities.invokeLater(() -> ui.onError("Bilinmeyen sunucu kodu: " + op));

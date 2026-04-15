@@ -103,13 +103,6 @@ public final class LoginHandler implements ClientRequestHandler {
           w.writeUtf8("Bağlantı kabul edildi. Hoş geldiniz, " + name + " (oda: " + room + ").");
         });
 
-    try {
-      broadcaster.sendChatHistoryTo(
-          session, services.chatHistory().snapshotForRoom(room));
-    } catch (IOException e) {
-      services.logger().warn("Geçmiş mesajlar gönderilemedi: " + e.getMessage());
-    }
-
     services.logger().info("Yeni istemci bağlandı: " + name + " oda=" + room + " " + session.remoteAddress());
     broadcaster.notifyOthersInRoom(name, room, "USER_JOINED|" + name);
     broadcaster.sendLogToRoom(room, "[" + name + "] sohbete katıldı.");

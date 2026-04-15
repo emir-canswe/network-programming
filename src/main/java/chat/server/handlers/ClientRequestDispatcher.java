@@ -22,11 +22,7 @@ public final class ClientRequestDispatcher {
     register(chat.protocol.OpCode.C_LOGOUT, new LogoutHandler(services));
     register(chat.protocol.OpCode.C_FILE_OFFER, new FileOfferHandler(services, broadcaster));
     register(chat.protocol.OpCode.C_FILE_REQUEST, new FileDownloadHandler(services));
-    register(chat.protocol.OpCode.C_PING, new PingHandler());
     register(chat.protocol.OpCode.C_LIST_USERS, new ListUsersHandler(services, broadcaster));
-    register(chat.protocol.OpCode.C_TYPING, new TypingHandler(broadcaster));
-    register(chat.protocol.OpCode.C_EDIT_MESSAGE, new EditMessageHandler(services, broadcaster));
-    register(chat.protocol.OpCode.C_DELETE_MESSAGE, new DeleteMessageHandler(services, broadcaster));
     register(chat.protocol.OpCode.C_FILE_UPLOAD_BEGIN, new FileUploadBeginHandler(services));
     register(chat.protocol.OpCode.C_FILE_UPLOAD_PART, new FileUploadPartHandler(services));
     register(

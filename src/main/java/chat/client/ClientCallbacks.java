@@ -1,13 +1,9 @@
 package chat.client;
 
-import java.util.List;
-
 /**
  * Ağ iş parçacığından EDT'ye güvenli geri çağrılar (ISP: istemci UI ihtiyaçları).
  */
 public interface ClientCallbacks {
-
-  record HistoryEntry(String fromUser, long epochMs, long messageId, String text) {}
 
   void onAckLogin(boolean ok, String message);
 
@@ -26,14 +22,6 @@ public interface ClientCallbacks {
   void onFileDownloadProgress(int percent, long current, long total);
 
   void onFileDownloadProgressDone();
-
-  void onChatHistory(List<HistoryEntry> entries);
-
-  void onUserTyping(String username, boolean started);
-
-  void onMessageEdited(long messageId, String newText, String editedBy);
-
-  void onMessageDeleted(long messageId);
 
   void onError(String message);
 
