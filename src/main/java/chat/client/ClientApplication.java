@@ -1,7 +1,9 @@
 package chat.client;
 
 import chat.client.ui.ChatRowFactory;
+import chat.server.ChatServerServices;
 import chat.server.PrivateMessageParser;
+import chat.server.ServerLimits;
 import chat.ui.MockupTheme;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -13,8 +15,11 @@ import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.Component;
+import java.io.DataOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -877,17 +882,38 @@ public final class ClientApplication extends JFrame implements ClientCallbacks {
                 return;
               }
             }
-            byte[] data = Files.readAllBytes(p);
-            if (data.length > 32 * 1024 * 1024) {
+            if (sz > ServerLimits.MAX_FILE_BYTES) {
               SwingUtilities.invokeLater(
                   () -> JOptionPane.showMessageDialog(
                       ClientApplication.this,
-                      "Dosya 32 MB sınırını aşıyor (sunucu reddeder)."));
+                      "Dosya "
+                          + (ServerLimits.MAX_FILE_BYTES / (1024 * 1024))
+                          + " MB sınırını aşıyor."));
               return;
             }
-            net.sendFileOffer(p.getFileName().toString(), data);
+            String host = hostField.getText().trim();
+            int chatPort = Integer.parseInt(portField.getText().trim());
+            int filePort = chatPort + 1;
+            String user = userField.getText().trim();
+            String room = ChatServerServices.sanitizeRoomName(roomNameField.getText());
+            try (Socket sock = new Socket(host, filePort);
+                DataOutputStream outStream = new DataOutputStream(sock.getOutputStream());
+                FileInputStream inputStream = new FileInputStream(p.toFile())) {
+              outStream.writeUTF(user);
+              outStream.writeUTF(room);
+              outStream.writeUTF(p.getFileName().toString());
+              byte[] buffer = new byte[4096];
+              int okunanByte;
+              while ((okunanByte = inputStream.read(buffer)) > 0) {
+                outStream.write(buffer, 0, okunanByte);
+              }
+              outStream.flush();
+            }
             SwingUtilities.invokeLater(
-                () -> appendLogLocal("Dosya sunucuya gönderildi: " + p.getFileName()));
+                () ->
+                    appendLogLocal(
+                        "Dosya gönderildi (DataOutputStream, port " + filePort + "): "
+                            + p.getFileName()));
           } catch (Exception ex) {
             SwingUtilities.invokeLater(
                 () -> {

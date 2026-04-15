@@ -30,6 +30,15 @@ public final class ChatServerServices {
   private final AtomicLong nextPrivateMessageId = new AtomicLong(1);
   private final AtomicLong nextBroadcastMessageId = new AtomicLong(1);
 
+  private final ConcurrentHashMap<Long, TrackedBroadcastMessage> broadcastMessages =
+      new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<Long, TrackedPrivateMessage> privateMessages =
+      new ConcurrentHashMap<>();
+
+  public record TrackedBroadcastMessage(String room, String author) {}
+
+  public record TrackedPrivateMessage(String fromUser, String toUser) {}
+
   public ChatServerServices(
       OnlineUserRegistry registry, SharedFileStore fileStore, TimestampedLogger logger) {
     this.registry = registry;
@@ -52,6 +61,34 @@ public final class ChatServerServices {
   /** Genel sohbet mesajları için artan kimlik (ödev: mesajda kullanıcı adı + zaman). */
   public long nextBroadcastMessageId() {
     return nextBroadcastMessageId.getAndIncrement();
+  }
+
+  public void rememberBroadcastMessage(long id, String room, String author) {
+    if (id > 0 && room != null && author != null) {
+      broadcastMessages.put(id, new TrackedBroadcastMessage(room, author));
+    }
+  }
+
+  public void rememberPrivateMessage(long id, String fromUser, String toUser) {
+    if (id > 0 && fromUser != null && toUser != null) {
+      privateMessages.put(id, new TrackedPrivateMessage(fromUser, toUser));
+    }
+  }
+
+  public Optional<TrackedBroadcastMessage> lookupBroadcastMessage(long id) {
+    return Optional.ofNullable(broadcastMessages.get(id));
+  }
+
+  public Optional<TrackedPrivateMessage> lookupPrivateMessage(long id) {
+    return Optional.ofNullable(privateMessages.get(id));
+  }
+
+  public void forgetBroadcastMessage(long id) {
+    broadcastMessages.remove(id);
+  }
+
+  public void forgetPrivateMessage(long id) {
+    privateMessages.remove(id);
   }
 
   public void setRoomPassword(String password) {

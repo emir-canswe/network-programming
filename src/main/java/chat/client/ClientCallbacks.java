@@ -13,6 +13,14 @@ public interface ClientCallbacks {
 
   void onChatPrivate(String from, long epochMs, long messageId, String text);
 
+  default void onChatBroadcastEdit(String from, long epochMs, long messageId, String newText) {}
+
+  default void onChatBroadcastDelete(long messageId) {}
+
+  default void onChatPrivateEdit(String from, long epochMs, long messageId, String newText) {}
+
+  default void onChatPrivateDelete(long messageId) {}
+
   void onNotify(String line);
 
   void onFileAvailable(String id, String fromUser, String filename, long size, String mime);

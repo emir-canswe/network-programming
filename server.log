@@ -1,0 +1,6 @@
+[2026-04-15 16:00:19] [INFO] Sunucu dinlemede: port 9000 | Dosya (TCP/DataStream): port 9001
+[2026-04-15 16:00:30] [INFO] Bağlantı kabul edildi: /127.0.0.1:55774
+[2026-04-15 16:00:30] [INFO] Yeni istemci bağlandı: can oda=genel /127.0.0.1:55774
+[2026-04-15 16:00:33] [INFO] Genel mesaj: can oda=genel
+[2026-04-15 16:00:40] [INFO] LOGOUT: can
+[2026-04-15 16:00:40] [INFO] İstemci ayrıldı: can

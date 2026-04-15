@@ -226,4 +226,95 @@ public final class UserListBroadcaster {
           w.writeUtf8(mime != null ? mime : "application/octet-stream");
         });
   }
+
+  public void broadcastChatEdit(
+      String fromUser, long epochMs, long messageId, String newText, String room) {
+    services
+        .registry()
+        .forEachConnection(
+            c -> {
+              if (!sameRoom(c, room)) {
+                return;
+              }
+              try {
+                c.send(
+                    w -> {
+                      w.writeOpcode(OpCode.S_CHAT_BROADCAST_EDIT);
+                      w.writeUtf8(fromUser);
+                      w.writeLong(epochMs);
+                      w.writeLong(messageId);
+                      w.writeUtf8(newText);
+                    });
+              } catch (IOException ignored) {
+              }
+            });
+  }
+
+  public void broadcastChatDelete(long messageId, String room) {
+    services
+        .registry()
+        .forEachConnection(
+            c -> {
+              if (!sameRoom(c, room)) {
+                return;
+              }
+              try {
+                c.send(
+                    w -> {
+                      w.writeOpcode(OpCode.S_CHAT_BROADCAST_DELETE);
+                      w.writeLong(messageId);
+                    });
+              } catch (IOException ignored) {
+              }
+            });
+  }
+
+  public void notifyPrivateMessageEdited(
+      String fromUser, String toUser, long epochMs, long messageId, String newText) {
+    sendPrivateEditIfOnline(fromUser, fromUser, epochMs, messageId, newText);
+    sendPrivateEditIfOnline(toUser, fromUser, epochMs, messageId, newText);
+  }
+
+  private void sendPrivateEditIfOnline(
+      String connectionUser, String fromAuthor, long epochMs, long messageId, String newText) {
+    services
+        .registry()
+        .find(connectionUser)
+        .ifPresent(
+            c -> {
+              try {
+                c.send(
+                    w -> {
+                      w.writeOpcode(OpCode.S_CHAT_PRIVATE_EDIT);
+                      w.writeUtf8(fromAuthor);
+                      w.writeLong(epochMs);
+                      w.writeLong(messageId);
+                      w.writeUtf8(newText);
+                    });
+              } catch (IOException ignored) {
+              }
+            });
+  }
+
+  public void notifyPrivateMessageDeleted(String fromUser, String toUser, long messageId) {
+    sendPrivateDeleteIfOnline(fromUser, messageId);
+    sendPrivateDeleteIfOnline(toUser, messageId);
+  }
+
+  private void sendPrivateDeleteIfOnline(String connectionUser, long messageId) {
+    services
+        .registry()
+        .find(connectionUser)
+        .ifPresent(
+            c -> {
+              try {
+                c.send(
+                    w -> {
+                      w.writeOpcode(OpCode.S_CHAT_PRIVATE_DELETE);
+                      w.writeLong(messageId);
+                    });
+              } catch (IOException ignored) {
+              }
+            });
+  }
 }

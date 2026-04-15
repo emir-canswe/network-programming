@@ -20,6 +20,10 @@ public final class OpCode {
   public static final int C_FILE_UPLOAD_PART = 44;
   public static final int C_FILE_UPLOAD_COMMIT = 45;
   public static final int C_FILE_CANCEL = 46;
+  public static final int C_EDIT_BROADCAST = 47;
+  public static final int C_DELETE_BROADCAST = 48;
+  public static final int C_EDIT_PRIVATE = 49;
+  public static final int C_DELETE_PRIVATE = 50;
 
   /* Sunucu → İstemci */
   public static final int S_ACK_LOGIN = 10;
@@ -31,4 +35,8 @@ public final class OpCode {
   public static final int S_FILE_PAYLOAD = 16;
   public static final int S_ERROR = 17;
   public static final int S_SERVER_LOG = 18;
+  public static final int S_CHAT_BROADCAST_EDIT = 28;
+  public static final int S_CHAT_BROADCAST_DELETE = 29;
+  public static final int S_CHAT_PRIVATE_EDIT = 30;
+  public static final int S_CHAT_PRIVATE_DELETE = 31;
 }

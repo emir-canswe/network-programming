@@ -29,6 +29,15 @@ public final class ClientRequestDispatcher {
         chat.protocol.OpCode.C_FILE_UPLOAD_COMMIT,
         new FileUploadCommitHandler(services, broadcaster));
     register(chat.protocol.OpCode.C_FILE_CANCEL, new FileUploadCancelHandler(services));
+    register(
+        chat.protocol.OpCode.C_EDIT_BROADCAST, new EditBroadcastMessageHandler(services, broadcaster));
+    register(
+        chat.protocol.OpCode.C_DELETE_BROADCAST,
+        new DeleteBroadcastMessageHandler(services, broadcaster));
+    register(
+        chat.protocol.OpCode.C_EDIT_PRIVATE, new EditPrivateMessageHandler(services, broadcaster));
+    register(
+        chat.protocol.OpCode.C_DELETE_PRIVATE, new DeletePrivateMessageHandler(services, broadcaster));
   }
 
   private void register(int op, ClientRequestHandler h) {

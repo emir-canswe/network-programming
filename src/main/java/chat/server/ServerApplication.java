@@ -64,8 +64,12 @@ public final class ServerApplication extends JFrame {
   private UserListBroadcaster broadcaster;
 
   private ServerSocket serverSocket;
+  /** Ders örneğindeki gibi {@link java.io.DataInputStream} ile dosya kabulü (sohbet portu + 1). */
+  private ServerSocket fileUploadServerSocket;
+
   private ExecutorService clientPool;
   private Thread acceptThread;
+  private Thread fileUploadAcceptThread;
 
   private ServerApplication() {
     super("TCP Sohbet Sunucusu");
@@ -160,7 +164,7 @@ public final class ServerApplication extends JFrame {
     JPanel hint = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 4));
     hint.setOpaque(false);
     JLabel hi = new JLabel(
-        "<html><div style='color:#94a3b8;font-size:11px'>Günlük <b style=\"color:#f1f5f9\">server.log</b> dosyasına da yazılır. Oda şifresi sadece sunucu başlarken uygulanır.</div></html>");
+        "<html><div style='color:#94a3b8;font-size:11px'>Günlük <b style=\"color:#f1f5f9\">server.log</b> dosyasına da yazılır. Oda şifresi sadece sunucu başlarken uygulanır.<br/>Dosya gönderimi: <b style=\"color:#f1f5f9\">sohbet portu + 1</b> (DataInputStream / DataOutputStream akışı).</div></html>");
     hint.add(hi);
     north.add(hint);
 
@@ -359,6 +363,27 @@ public final class ServerApplication extends JFrame {
       JOptionPane.showMessageDialog(this, "Port dinlenemiyor: " + ex.getMessage());
       return;
     }
+    if (port >= 65535) {
+      try {
+        serverSocket.close();
+      } catch (IOException ignored) {
+      }
+      serverSocket = null;
+      JOptionPane.showMessageDialog(this, "Dosya yükleme için sohbet portu 65534 veya daha küçük olmalı (port+1).");
+      return;
+    }
+    try {
+      fileUploadServerSocket = new ServerSocket(port + 1);
+    } catch (IOException ex) {
+      try {
+        serverSocket.close();
+      } catch (IOException ignored) {
+      }
+      serverSocket = null;
+      JOptionPane.showMessageDialog(
+          this, "Dosya yükleme portu açılamadı (" + (port + 1) + "): " + ex.getMessage());
+      return;
+    }
 
     clientPool = Executors.newCachedThreadPool();
     startBtn.setEnabled(false);
@@ -368,7 +393,7 @@ public final class ServerApplication extends JFrame {
     roomPasswordField.setEnabled(false);
     accountPasswordField.setEnabled(false);
 
-    logger.info("Sunucu dinlemede: port " + port);
+    logger.info("Sunucu dinlemede: port " + port + " | Dosya (TCP/DataStream): port " + (port + 1));
 
     acceptThread =
         new Thread(
@@ -390,9 +415,38 @@ public final class ServerApplication extends JFrame {
             "accept-loop");
     acceptThread.setDaemon(true);
     acceptThread.start();
+
+    fileUploadAcceptThread =
+        new Thread(
+            () -> {
+              while (fileUploadServerSocket != null && !fileUploadServerSocket.isClosed()) {
+                try {
+                  Socket s = fileUploadServerSocket.accept();
+                  logger.info("Dosya yükleme bağlantısı: " + s.getRemoteSocketAddress());
+                  clientPool.execute(
+                      () ->
+                          TcpDosyaUploadListener.handleUpload(s, services, broadcaster, logger));
+                } catch (IOException ex) {
+                  if (fileUploadServerSocket != null && !fileUploadServerSocket.isClosed()) {
+                    logger.error("Dosya kabul döngüsü: " + ex.getMessage());
+                  }
+                }
+              }
+            },
+            "file-upload-accept");
+    fileUploadAcceptThread.setDaemon(true);
+    fileUploadAcceptThread.start();
   }
 
   private void stopServer() {
+    try {
+      if (fileUploadServerSocket != null && !fileUploadServerSocket.isClosed()) {
+        fileUploadServerSocket.close();
+      }
+    } catch (IOException ignored) {
+    }
+    fileUploadServerSocket = null;
+    fileUploadAcceptThread = null;
     try {
       if (serverSocket != null && !serverSocket.isClosed()) {
         serverSocket.close();

@@ -1,0 +1,3 @@
+[2026-04-15 16:00:30] Bağlantı kabul edildi. Hoş geldiniz, can (oda: genel).
+[2026-04-15 16:00:30] Sunucu: [can] sohbete katıldı.
+[2026-04-15 16:00:33] can: merhaba

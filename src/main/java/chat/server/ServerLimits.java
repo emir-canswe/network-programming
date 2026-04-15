@@ -8,4 +8,7 @@ public final class ServerLimits {
 
   /** Parçalı yüklemede tek parça üst sınırı. */
   public static final int MAX_UPLOAD_CHUNK_BYTES = 512 * 1024;
+
+  /** Sohbet metni (gönderme / düzenleme) üst sınırı — karakter. */
+  public static final int MAX_CHAT_CHARS = 8000;
 }

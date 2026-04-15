@@ -228,6 +228,28 @@ public final class ChatNetworkClient {
             String log = reader.readUtf8();
             SwingUtilities.invokeLater(() -> ui.onServerLog(log));
           }
+          case OpCode.S_CHAT_BROADCAST_EDIT -> {
+            String from = reader.readUtf8();
+            long t = reader.readLong();
+            long mid = reader.readLong();
+            String body = reader.readUtf8();
+            SwingUtilities.invokeLater(() -> ui.onChatBroadcastEdit(from, t, mid, body));
+          }
+          case OpCode.S_CHAT_BROADCAST_DELETE -> {
+            long mid = reader.readLong();
+            SwingUtilities.invokeLater(() -> ui.onChatBroadcastDelete(mid));
+          }
+          case OpCode.S_CHAT_PRIVATE_EDIT -> {
+            String from = reader.readUtf8();
+            long t = reader.readLong();
+            long mid = reader.readLong();
+            String body = reader.readUtf8();
+            SwingUtilities.invokeLater(() -> ui.onChatPrivateEdit(from, t, mid, body));
+          }
+          case OpCode.S_CHAT_PRIVATE_DELETE -> {
+            long mid = reader.readLong();
+            SwingUtilities.invokeLater(() -> ui.onChatPrivateDelete(mid));
+          }
           default ->
               SwingUtilities.invokeLater(() -> ui.onError("Bilinmeyen sunucu kodu: " + op));
         }
